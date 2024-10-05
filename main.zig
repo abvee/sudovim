@@ -26,12 +26,28 @@ pub fn main() !void {
 	const sudo = "/bin/sudo"; // Yes, I'm hardcoding sudo, what are you going to do about it.
 
 	const pid = try posix.fork();
-	// NOTE: don't use catch |err| here, posix.execveZ returns an error set
-	// and as of zig 13, you cannot use capture groups with them. `try` is
-	// also a form of catch |err|.
-	if (pid == 0)
-		posix.execveZ(sudo, &.{std.os.argv[0], @ptrCast(editor), null}, &.{null}) catch
+	if (pid == 0) {
+
+		// Allocate space for the argument list to execve
+		// arg list is: argv[0] + editor + file + null.
+		// Thus, arg_list.len = std.os.argv.len + 2 (1 for editor, 1 for null)
+		const arg_list: [*:null] ?[*:0]const u8 = @ptrCast(try allocator.alloc(?[*:0]const u8, std.os.argv.len + 2));
+		defer allocator.free(arg_list[0..std.os.argv.len + 2]);
+
+		// populate argument list
+		arg_list[0] = std.os.argv[0];
+		arg_list[1] = @ptrCast(editor);
+		// add file list to arg_list
+		var i: u8 = 2;
+		for (std.os.argv[1..]) |argv| {
+			arg_list[i] = argv;
+			i += 1;
+		}
+		arg_list[i] = null;
+
+		posix.execveZ(sudo, arg_list, &.{null}) catch
 			std.debug.print("Something went wrong with calling exec.\n", .{});
+	}
 
 	stdout.print("editor pid: {}\n", .{pid}) catch {};
 	stdout.print("editor {s}\n", .{editor}) catch {};
