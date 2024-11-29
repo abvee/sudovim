@@ -1,5 +1,7 @@
 const std = @import("std");
 const process = std.process;
+const posix = std.posix;
+const assert = std.debug.assert;
 
 pub fn main() !void {
 	// allocator
@@ -7,13 +9,29 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
-	// pass argv to the child process
+	// $EDITOR
+	// TODO: set a default editor if one isn't set in the env
+	const editor = posix.getenv("EDITOR") orelse unreachable;
+	const sudo = blk: { // check if sudo or doas is installed and use them
+		std.fs.accessAbsolute("/bin/sudo", .{}) catch {
+			std.fs.accessAbsolute("/bin/doas", .{}) catch {
+				// if nothing is found, use error
+				std.debug.print("/bin/sudo and /bin/doas not found, aborting\n", .{});
+				return;
+			};
+			break :blk "doas";
+		};
+		break :blk "sudo";
+	};
+	assert(@TypeOf(sudo) == *const [4:0]u8);
+
+	// pass argv file list to the child process
 	const child_args =
 		try allocator.alloc([]const u8, std.os.argv.len + 1);
-	// set values
-	child_args[0] = "doas";
-	child_args[1] = "vim";
-	for (std.os.argv[1..], 2..) |argv, i| { // pass files to vim
+	// set argument values
+	child_args[0] = sudo; // casts pointer to slice implicitly
+	child_args[1] = editor;
+	for (std.os.argv[1..], 2..) |argv, i| { // pass files to editor
 		child_args[i] = argv[0..strlen(argv)];
 	}
 
