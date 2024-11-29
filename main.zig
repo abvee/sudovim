@@ -1,5 +1,6 @@
 const std = @import("std");
 const process = std.process;
+const posix = std.posix;
 
 pub fn main() !void {
 	// allocator
@@ -7,12 +8,16 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
-	// pass argv to the child process
+	// $EDITOR
+	// TODO: set a default editor if one isn't set in the env
+	const editor = posix.getenv("EDITOR") orelse unreachable;
+
+	// pass argv file list to the child process
 	const child_args =
 		try allocator.alloc([]const u8, std.os.argv.len + 1);
-	// set values
+	// set argument values
 	child_args[0] = "doas";
-	child_args[1] = "vim";
+	child_args[1] = editor;
 	for (std.os.argv[1..], 2..) |argv, i| { // pass files to vim
 		child_args[i] = argv[0..strlen(argv)];
 	}
