@@ -7,9 +7,19 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
+	// pass argv to the child process
+	const child_args =
+		try allocator.alloc([]const u8, std.os.argv.len + 1);
+	// set values
+	child_args[0] = "doas";
+	child_args[1] = "vim";
+	for (std.os.argv[1..], 2..) |argv, i| { // pass files to vim
+		child_args[i] = argv[0..strlen(argv)];
+	}
+
 	// init a process
 	var child: process.Child = process.Child.init(
-		&.{"/bin/doas", "vim"},
+		child_args,
 		allocator,
 	);
 
@@ -20,24 +30,18 @@ pub fn main() !void {
 	_ = try child.wait();
 }
 
-test "zig process spawning" {
+test "argv" {
+	for (std.os.argv) |argv|
+		std.debug.print("{s}", .{argv});
+}
 
-	// allocator
-	var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-	defer arena.deinit();
-	const allocator = arena.allocator();
-
-	// init a process
-	var child: process.Child = process.Child.init(
-		&.{"bash", "./tests/spawn-test.sh"},
-		allocator,
-	);
-	std.debug.print("{any}\n", .{child});
-
-	// spawn it
-	try child.spawn();
-	std.debug.print("After spawning\n", .{});
-
-	// Wait for it to finish
-	_ = try child.wait();
+inline fn strlen(s: [*:0]const u8) u8 {
+	var i: u8 = 0;
+	while (s[i] != 0) {
+		i += 1;
+	}
+	return i;
+}
+test "strlen" {
+	std.debug.print("{}\n", .{strlen(@ptrCast("Hello"))});
 }
