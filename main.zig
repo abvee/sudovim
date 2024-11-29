@@ -14,16 +14,16 @@ pub fn main() !void {
 	const editor = posix.getenv("EDITOR") orelse unreachable;
 	const sudo = blk: { // check if sudo or doas is installed and use them
 		std.fs.accessAbsolute("/bin/sudo", .{}) catch {
-			std.fs.accessAbsolute("/bin/doas", .{}) catch {
+			std.fs.accessAbsolute("/bin/doas", .{}) catch |e| {
 				// if nothing is found, use error
 				std.debug.print("/bin/sudo and /bin/doas not found, aborting\n", .{});
-				return;
+				return e;
 			};
 			break :blk "doas";
 		};
 		break :blk "sudo";
 	};
-	assert(@TypeOf(sudo) == *const [4:0]u8);
+	assert(@TypeOf(sudo) == *const [4:0]u8); // ensure we get something
 
 	// pass argv file list to the child process
 	const child_args =
@@ -43,6 +43,14 @@ pub fn main() !void {
 
 	// spawn process
 	try child.spawn();
+
+	// get all real paths
+	const paths: [][]const u8 =
+		try allocator.alloc([]const u8, std.os.argv.len - 1);
+	for (std.os.argv[1..], paths) |argv, *p| {
+		p.* = std.fs.realpathAlloc(allocator, argv[0..strlen(argv)])
+			catch &.{0}; // TODO: deal with files that do not exist yet
+	}
 
 	// wait for it to finish
 	_ = try child.wait();
