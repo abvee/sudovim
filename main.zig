@@ -49,8 +49,20 @@ pub fn main() !void {
 }
 
 test "argv" {
+	std.debug.print("--ARGV--\n", .{});
 	for (std.os.argv) |argv|
-		std.debug.print("{s}", .{argv});
+		std.debug.print("{s}\n", .{argv});
+}
+
+test "realpath" {
+	std.debug.print("--REALPATH--\n", .{});
+	// allocator
+	var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+	defer arena.deinit();
+	const allocator = arena.allocator();
+
+	const path = try std.fs.realpathAlloc(allocator, "/bin/ls");
+	std.debug.print("{s}\n", .{path});
 }
 
 inline fn strlen(s: [*:0]const u8) u8 {
@@ -61,5 +73,6 @@ inline fn strlen(s: [*:0]const u8) u8 {
 	return i;
 }
 test "strlen" {
+	std.debug.print("--STRLEN--\n", .{});
 	std.debug.print("{}\n", .{strlen(@ptrCast("Hello"))});
 }
