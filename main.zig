@@ -54,13 +54,31 @@ pub fn main() !void {
 	// NOTE: there might be a race condition here, but we can ignore it
 
 	// create the paths
-	std.debug.print("{s}\n", .{
-		strcat(
+	const root = try std.fs.openDirAbsolute(
+		try strcat(
 			allocator,
-			posix.getenv("XDG_DATA_HOME"),
+			posix.getenv("XDG_DATA_HOME").?,
 			"/sudovim",
 		),
-	});
+		.{},
+	);
+
+	for (paths) |p| {
+		if (root.access(p[1..], .{})) |value| {
+			assert(@TypeOf(value) == void);
+			continue; // file already exists
+		}
+		else |err| switch (err) {
+			posix.AccessError.FileNotFound => {},
+			else => return err,
+		}
+
+		// create path
+		try root.makePath(p[1..file_name_index(p)]);
+
+		// create symlinks
+		try root.symLink(p, p[1..], .{});
+	}
 
 	// wait for child to finish
 	_ = try child.wait();
