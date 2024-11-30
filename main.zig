@@ -44,15 +44,25 @@ pub fn main() !void {
 	// spawn process
 	try child.spawn();
 
-	// get all real paths
+	// get all real paths and file names
 	const paths: [][]const u8 =
 		try allocator.alloc([]const u8, std.os.argv.len - 1);
 	for (std.os.argv[1..], paths) |argv, *p| {
 		p.* = std.fs.realpathAlloc(allocator, argv[0..strlen(argv)])
 			catch &.{0}; // TODO: deal with files that do not exist yet
 	}
+	// NOTE: there might be a race condition here, but we can ignore it
 
-	// wait for it to finish
+	// create the paths
+	std.debug.print("{s}\n", .{
+		strcat(
+			allocator,
+			posix.getenv("XDG_DATA_HOME"),
+			"/sudovim",
+		),
+	});
+
+	// wait for child to finish
 	_ = try child.wait();
 }
 
@@ -73,6 +83,13 @@ test "realpath" {
 	std.debug.print("{s}\n", .{path});
 }
 
+test "makePath" {
+	std.debug.print("--MAKE PATH--\n", .{});
+	const tmp = try std.fs.openDirAbsolute("/tmp", .{});
+	try tmp.makePath("etc/default");
+	// try tmp.makePath("/etc/default"); // this doesn't work
+}
+
 inline fn strlen(s: [*:0]const u8) u8 {
 	var i: u8 = 0;
 	while (s[i] != 0) {
@@ -83,4 +100,45 @@ inline fn strlen(s: [*:0]const u8) u8 {
 test "strlen" {
 	std.debug.print("--STRLEN--\n", .{});
 	std.debug.print("{}\n", .{strlen(@ptrCast("Hello"))});
+}
+
+fn strcat(allocator: std.mem.Allocator, s1: []const u8, s2: []const u8) ![]const u8 {
+	var i: u8 = 0;
+	const ret: []u8 = try allocator.alloc(u8, s1.len + s2.len);
+	for (s1) |s| {
+		ret[i] = s;
+		i += 1;
+	}
+
+	for (s2) |s| {
+		ret[i] = s;
+		i += 1;
+	}
+	return ret;
+}
+test "strcat" {
+	// allocator
+	var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+	defer arena.deinit();
+	const allocator = arena.allocator();
+
+	std.debug.print("--STRCAT--\n", .{});
+	std.debug.print("{s}\n", .{
+		try strcat(allocator, "Hello ", "World"),
+	});
+}
+
+inline fn file_name_index(s: []const u8) usize {
+	var i: usize = s.len - 1;
+	while (i >= 0) : (i -= 1)
+		if (s[i] == '/') // std.os.path.sep not needed
+			break;
+	return i + 1;
+}
+test "file name" {
+	std.debug.print("--FILE NAME--\n", .{});
+	std.debug.print("{s}\n{s}\n", .{
+		"/etc/default/grub"[file_name_index("/etc/default/grub")..],
+		"/etc/default/grub"[0..file_name_index("/etc/default/grub")],
+	});
 }
