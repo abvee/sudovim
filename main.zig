@@ -9,6 +9,15 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
+	// convert std.os.argv to slices
+	// Then get it's size and checksum value
+	const files: [][]const u8 = try allocator.alloc([]const u8, std.os.argv.len - 1);
+	for (std.os.argv[1..], files) |argv, *f| {
+		f.* = argv[0..strlen(argv)];
+		// assert(f.* != @as([]const u8, &.{0}));
+
+	}
+
 	// $EDITOR
 	// TODO: set a default editor if one isn't set in the env
 	const editor = posix.getenv("EDITOR") orelse unreachable;
@@ -31,8 +40,8 @@ pub fn main() !void {
 	// set argument values
 	child_args[0] = sudo; // casts pointer to slice implicitly
 	child_args[1] = editor;
-	for (std.os.argv[1..], 2..) |argv, i| { // pass files to editor
-		child_args[i] = argv[0..strlen(argv)];
+	for (files, 2..) |f, i| { // pass files to editor
+		child_args[i] = f;
 	}
 
 	// init a process
@@ -47,8 +56,8 @@ pub fn main() !void {
 	// get all real paths and file names
 	const paths: [][]const u8 =
 		try allocator.alloc([]const u8, std.os.argv.len - 1);
-	for (std.os.argv[1..], paths) |argv, *p| {
-		p.* = std.fs.realpathAlloc(allocator, argv[0..strlen(argv)])
+	for (files, paths) |f, *p| {
+		p.* = std.fs.realpathAlloc(allocator, f)
 			catch &.{0}; // TODO: deal with files that do not exist yet
 	}
 
@@ -62,7 +71,7 @@ pub fn main() !void {
 	const root = try std.fs.openDirAbsolute(
 		try strcat(
 			allocator,
-			posix.getenv("XDG_DATA_HOME").?,
+			posix.getenv("XDG_DATA_HOME").?, // TODO: handle if this variable doesn't exist
 			"/sudovim",
 		),
 		.{},
