@@ -15,7 +15,7 @@ pub fn main() !void {
 	const sudo = blk: { // check if sudo or doas is installed and use them
 		std.fs.accessAbsolute("/bin/sudo", .{}) catch {
 			std.fs.accessAbsolute("/bin/doas", .{}) catch |e| {
-				// if nothing is found, use error
+				// if nothing is found, error
 				std.debug.print("/bin/sudo and /bin/doas not found, aborting\n", .{});
 				return e;
 			};
@@ -51,9 +51,14 @@ pub fn main() !void {
 		p.* = std.fs.realpathAlloc(allocator, argv[0..strlen(argv)])
 			catch &.{0}; // TODO: deal with files that do not exist yet
 	}
-	// NOTE: there might be a race condition here, but we can ignore it
 
-	// create the paths
+	// wait for child to finish
+	_ = try child.wait();
+
+	// create the paths after the process exits
+	// This allows us to check if anything changed at all
+
+	// TODO: check if something changed
 	const root = try std.fs.openDirAbsolute(
 		try strcat(
 			allocator,
@@ -79,9 +84,6 @@ pub fn main() !void {
 		// create symlinks
 		try root.symLink(p, p[1..], .{});
 	}
-
-	// wait for child to finish
-	_ = try child.wait();
 }
 
 test "argv" {
