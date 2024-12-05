@@ -22,12 +22,9 @@ pub fn main() !void {
 		f.* = argv[0..strlen(argv)];
 		// assert(f.* != @as([]const u8, &.{0}));
 		const file = try cwd.openFile(f.*, .{}); // TODO: if file not there
-		s.* = (try file.stat()).size;
-
-		std.debug.print("{any}\n", .{s.*});
-		c.* = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES));
-		std.debug.print("{}\n", .{c.*});
-		file.close();
+		defer file.close();
+		s.* = (try file.stat()).size; // sizes
+		c.* = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES)); // hashes
 	}
 
 	// $EDITOR
@@ -89,7 +86,8 @@ pub fn main() !void {
 		.{},
 	);
 
-	for (paths) |p| {
+	// create the symlinks after checking if the file has changed or not
+	for (paths, 0..) |p, i| {
 		if (root.access(p[1..], .{})) |value| {
 			assert(@TypeOf(value) == void);
 			continue; // file already exists
@@ -98,6 +96,17 @@ pub fn main() !void {
 			posix.AccessError.FileNotFound => {},
 			else => return err,
 		}
+
+		const file = try std.fs.openFileAbsolute(p, .{});
+		defer file.close();
+		if ((try file.stat()).size == sizes[i])
+			continue;
+		if (
+			std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES))
+			==
+			checksums[i]
+		)
+			continue;
 
 		// create path
 		try root.makePath(p[1..file_name_index(p)]);
