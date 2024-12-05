@@ -3,19 +3,31 @@ const process = std.process;
 const posix = std.posix;
 const assert = std.debug.assert;
 
+const MAX_BYTES = 10000; // TODO: change to size of largest file
+
 pub fn main() !void {
 	// allocator
 	var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
+	const cwd = std.fs.cwd();
 	// convert std.os.argv to slices
 	// Then get it's size and checksum value
 	const files: [][]const u8 = try allocator.alloc([]const u8, std.os.argv.len - 1);
-	for (std.os.argv[1..], files) |argv, *f| {
+	const sizes: []u64 = try allocator.alloc(u64, std.os.argv.len - 1);
+	const checksums: []u32 = try allocator.alloc(u32, std.os.argv.len - 1);
+
+	for (std.os.argv[1..], files, sizes, checksums) |argv, *f, *s, *c| {
 		f.* = argv[0..strlen(argv)];
 		// assert(f.* != @as([]const u8, &.{0}));
+		const file = try cwd.openFile(f.*, .{}); // TODO: if file not there
+		s.* = (try file.stat()).size;
 
+		std.debug.print("{any}\n", .{s.*});
+		c.* = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES));
+		std.debug.print("{}\n", .{c.*});
+		file.close();
 	}
 
 	// $EDITOR

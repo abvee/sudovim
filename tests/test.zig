@@ -58,3 +58,17 @@ test "other" {
 
 	try root.makePath("tmp/other");
 }
+
+test "checksum" {
+	print("--CHECKSUM--\n", .{});
+	// allocator
+	var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+	defer arena.deinit();
+	const allocator = arena.allocator();
+
+	const file = try std.fs.openFileAbsolute("/tmp/file", .{});
+	const bytes = try file.readToEndAlloc(allocator, 100000);
+	const w = std.hash.Crc32.hash(bytes);
+	@compileLog(@TypeOf(w));
+	print("{}\n", .{w});
+}
