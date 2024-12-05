@@ -69,6 +69,13 @@ test "checksum" {
 	const file = try std.fs.openFileAbsolute("/tmp/file", .{});
 	const bytes = try file.readToEndAlloc(allocator, 100000);
 	const w = std.hash.Crc32.hash(bytes);
-	@compileLog(@TypeOf(w));
+	// @compileLog(@TypeOf(w));
 	print("{}\n", .{w});
+}
+
+test "misc" {
+	for (0..10) |i| {
+		std.debug.print("{}\n", .{i});
+		defer print("Something\n", .{});
+	}
 }
