@@ -11,20 +11,31 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
-	const cwd = std.fs.cwd();
 	// convert std.os.argv to slices
 	// Then get it's size and checksum value
+	const cwd = std.fs.cwd();
 	const files: [][]const u8 = try allocator.alloc([]const u8, std.os.argv.len - 1);
 	const sizes: []u64 = try allocator.alloc(u64, std.os.argv.len - 1);
 	const checksums: []u32 = try allocator.alloc(u32, std.os.argv.len - 1);
+	const new_files: []bool = try allocator.alloc(bool, std.os.argv.len - 1);
 
-	for (std.os.argv[1..], files, sizes, checksums) |argv, *f, *s, *c| {
-		f.* = argv[0..strlen(argv)];
-		// assert(f.* != @as([]const u8, &.{0}));
-		const file = try cwd.openFile(f.*, .{}); // TODO: if file not there
+	// assign values
+	for (std.os.argv[1..], 0..) |argv, i| {
+		files[i] = argv[0..strlen(argv)];
+		new_files[i] = false;
+
+		const file = cwd.openFile(files[i], .{})
+			catch |err| switch (err) {
+				error.FileNotFound => {
+					new_files[i] = true;
+					continue;
+				},
+				else => return err,
+			};
 		defer file.close();
-		s.* = (try file.stat()).size; // sizes
-		c.* = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES)); // hashes
+
+		sizes[i] = (try file.stat()).size; // sizes
+		checksums[i] = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES)); // hashes
 	}
 
 	// $EDITOR
@@ -53,14 +64,13 @@ pub fn main() !void {
 		child_args[i] = f;
 	}
 
-	// init a process
+	// process spawning
 	var child: process.Child = process.Child.init(
 		child_args,
 		allocator,
 	);
-
-	// spawn process
 	try child.spawn();
+	_ = try child.wait();
 
 	// get all real paths and file names
 	const paths: [][]const u8 =
@@ -69,9 +79,6 @@ pub fn main() !void {
 		p.* = std.fs.realpathAlloc(allocator, f)
 			catch &.{0}; // TODO: deal with files that do not exist yet
 	}
-
-	// wait for child to finish
-	_ = try child.wait();
 
 	// create the paths after the process exits
 	// This allows us to check if anything changed at all
