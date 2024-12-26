@@ -11,20 +11,31 @@ pub fn main() !void {
 	defer arena.deinit();
 	const allocator = arena.allocator();
 
-	const cwd = std.fs.cwd();
 	// convert std.os.argv to slices
 	// Then get it's size and checksum value
+	const cwd = std.fs.cwd();
 	const files: [][]const u8 = try allocator.alloc([]const u8, std.os.argv.len - 1);
 	const sizes: []u64 = try allocator.alloc(u64, std.os.argv.len - 1);
 	const checksums: []u32 = try allocator.alloc(u32, std.os.argv.len - 1);
+	const new_files: []bool = try allocator.alloc(bool, std.os.argv.len - 1);
 
-	for (std.os.argv[1..], files, sizes, checksums) |argv, *f, *s, *c| {
-		f.* = argv[0..strlen(argv)];
-		// assert(f.* != @as([]const u8, &.{0}));
-		const file = try cwd.openFile(f.*, .{}); // TODO: if file not there
+	// assign values
+	for (std.os.argv[1..], 0..) |argv, i| {
+		files[i] = argv[0..strlen(argv)];
+		new_files[i] = false;
+
+		const file = cwd.openFile(files[i], .{})
+			catch |err| switch (err) {
+				error.FileNotFound => {
+					new_files[i] = true;
+					continue;
+				},
+				else => return err,
+			};
 		defer file.close();
-		s.* = (try file.stat()).size; // sizes
-		c.* = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES)); // hashes
+
+		sizes[i] = (try file.stat()).size; // sizes
+		checksums[i] = std.hash.Crc32.hash(try file.readToEndAlloc(allocator, MAX_BYTES)); // hashes
 	}
 
 	// $EDITOR
@@ -53,30 +64,26 @@ pub fn main() !void {
 		child_args[i] = f;
 	}
 
-	// init a process
+	// process spawning
 	var child: process.Child = process.Child.init(
 		child_args,
 		allocator,
 	);
-
-	// spawn process
 	try child.spawn();
-
-	// get all real paths and file names
-	const paths: [][]const u8 =
-		try allocator.alloc([]const u8, std.os.argv.len - 1);
-	for (files, paths) |f, *p| {
-		p.* = std.fs.realpathAlloc(allocator, f)
-			catch &.{0}; // TODO: deal with files that do not exist yet
-	}
-
-	// wait for child to finish
 	_ = try child.wait();
 
-	// create the paths after the process exits
-	// This allows us to check if anything changed at all
+	// get all real paths and file names
+	const paths: []?[]const u8 =
+		try allocator.alloc(?[]const u8, std.os.argv.len - 1);
+	for (files, paths) |f, *p| {
+		p.* = std.fs.realpathAlloc(allocator, f)
+			catch |err| switch (err) {
+				error.FileNotFound => null,
+				else => return err,
+			};
+	}
 
-	// TODO: check if something changed
+	// root of the symlink folder
 	const root = try std.fs.openDirAbsolute(
 		try strcat(
 			allocator,
@@ -88,16 +95,30 @@ pub fn main() !void {
 
 	// create the symlinks after checking if the file has changed or not
 	for (paths, 0..) |p, i| {
-		if (root.access(p[1..], .{})) |value| {
+		// check if file exists
+		if (p == null) continue;
+
+		// if it's a new file, create the symlink
+		if (new_files[i]) {
+			try make_symlink(root, p.?);
+			continue;
+		}
+
+		// if it's not a new file, check the checksum and size before
+		// symlinking
+		// check if symlink already exists
+		if (root.access(p.?[1..], .{})) |value| {
 			assert(@TypeOf(value) == void);
-			continue; // file already exists
+			continue;
 		}
 		else |err| switch (err) {
+			// do nothing if the symlink doesn't already exist.
+			// This just means we have to make the symlink
 			posix.AccessError.FileNotFound => {},
 			else => return err,
 		}
 
-		const file = try std.fs.openFileAbsolute(p, .{});
+		const file = try std.fs.openFileAbsolute(p.?, .{});
 		defer file.close();
 		if ((try file.stat()).size == sizes[i])
 			continue;
@@ -108,11 +129,8 @@ pub fn main() !void {
 		)
 			continue;
 
-		// create path
-		try root.makePath(p[1..file_name_index(p)]);
-
-		// create symlinks
-		try root.symLink(p, p[1..], .{});
+		// create path and symlink
+		try make_symlink(root, p.?);
 	}
 }
 
@@ -191,4 +209,9 @@ test "file name" {
 		"/etc/default/grub"[file_name_index("/etc/default/grub")..],
 		"/etc/default/grub"[0..file_name_index("/etc/default/grub")],
 	});
+}
+
+inline fn make_symlink(root: std.fs.Dir, subpath: []const u8) !void {
+	try root.makePath(subpath[1..file_name_index(subpath)]);
+	try root.symLink(subpath, subpath[1..], .{});
 }
