@@ -73,17 +73,17 @@ pub fn main() !void {
 	_ = try child.wait();
 
 	// get all real paths and file names
-	const paths: [][]const u8 =
-		try allocator.alloc([]const u8, std.os.argv.len - 1);
+	const paths: []?[]const u8 =
+		try allocator.alloc(?[]const u8, std.os.argv.len - 1);
 	for (files, paths) |f, *p| {
 		p.* = std.fs.realpathAlloc(allocator, f)
-			catch &.{0}; // TODO: deal with files that do not exist yet
+			catch |err| switch (err) {
+				error.FileNotFound => null,
+				else => return err,
+			};
 	}
 
-	// create the paths after the process exits
-	// This allows us to check if anything changed at all
-
-	// TODO: check if something changed
+	// root of the symlink folder
 	const root = try std.fs.openDirAbsolute(
 		try strcat(
 			allocator,
@@ -95,16 +95,30 @@ pub fn main() !void {
 
 	// create the symlinks after checking if the file has changed or not
 	for (paths, 0..) |p, i| {
-		if (root.access(p[1..], .{})) |value| {
+		// check if file exists
+		if (p == null) continue;
+
+		// if it's a new file, create the symlink
+		if (new_files[i]) {
+			try make_symlink(root, p.?);
+			continue;
+		}
+
+		// if it's not a new file, check the checksum and size before
+		// symlinking
+		// check if symlink already exists
+		if (root.access(p.?[1..], .{})) |value| {
 			assert(@TypeOf(value) == void);
-			continue; // file already exists
+			continue;
 		}
 		else |err| switch (err) {
+			// do nothing if the symlink doesn't already exist.
+			// This just means we have to make the symlink
 			posix.AccessError.FileNotFound => {},
 			else => return err,
 		}
 
-		const file = try std.fs.openFileAbsolute(p, .{});
+		const file = try std.fs.openFileAbsolute(p.?, .{});
 		defer file.close();
 		if ((try file.stat()).size == sizes[i])
 			continue;
@@ -115,11 +129,8 @@ pub fn main() !void {
 		)
 			continue;
 
-		// create path
-		try root.makePath(p[1..file_name_index(p)]);
-
-		// create symlinks
-		try root.symLink(p, p[1..], .{});
+		// create path and symlink
+		try make_symlink(root, p.?);
 	}
 }
 
@@ -198,4 +209,9 @@ test "file name" {
 		"/etc/default/grub"[file_name_index("/etc/default/grub")..],
 		"/etc/default/grub"[0..file_name_index("/etc/default/grub")],
 	});
+}
+
+inline fn make_symlink(root: std.fs.Dir, subpath: []const u8) !void {
+	try root.makePath(subpath[1..file_name_index(subpath)]);
+	try root.symLink(subpath, subpath[1..], .{});
 }
