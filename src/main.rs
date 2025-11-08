@@ -6,6 +6,7 @@ use std::path::Path;
 const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
+	let mut cmdline = env::args();
 
 	// get the path
 	let mut path = match env::var("XDG_DATA_HOME") {
@@ -18,12 +19,19 @@ fn main() -> Result<(), io::Error> {
 	path.push_str(ROOT_PATH);
 	let path = Path::new(&path);
 
-	for i in env::args() {
-		if i == "-l" {
-			list(&path)?; // list out directory
-			return Ok(());
-		}
-	}
+	cmdline.next(); // get rid of argv[0]
+	let files: Vec<String> = loop {
+		if let Some(arg) = cmdline.next() {
+			if arg == "-l" {
+				return list(&path);
+			}
+
+			if &arg[0..1] != "-" {
+				break cmdline.collect()
+			}
+		} else { break cmdline.collect() };
+		// NOTE: this ^ else breaks null
+	};
 	Ok(())
 }
 
