@@ -20,9 +20,12 @@ fn main() -> Result<(), io::Error> {
 	let path = Path::new(&path);
 
 	cmdline.next(); // get rid of argv[0]
+	let mut cmdline = cmdline.peekable();
+
 	let files: Vec<String> = loop {
-		if let Some(arg) = cmdline.next() {
+		if let Some(arg) = cmdline.peek() {
 			if arg == "-l" {
+				println!("found argument: {}", arg);
 				return list(&path);
 			}
 
@@ -32,6 +35,11 @@ fn main() -> Result<(), io::Error> {
 		} else { break cmdline.collect() };
 		// NOTE: this ^ else breaks null
 	};
+	
+	// print out files
+	for i in &files {
+		println!("Found file: {}", i);
+	}
 	Ok(())
 }
 
