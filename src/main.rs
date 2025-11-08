@@ -1,6 +1,7 @@
 use std::env;
 use std::io;
 use std::fs;
+use std::path::Path;
 
 const ROOT_PATH: &str = "/sudovim";
 
@@ -15,6 +16,7 @@ fn main() -> Result<(), io::Error> {
 		},
 	};
 	path.push_str(ROOT_PATH);
+	let path = Path::new(&path);
 
 	for i in env::args() {
 		if i == "-l" {
@@ -25,15 +27,11 @@ fn main() -> Result<(), io::Error> {
 	Ok(())
 }
 
-fn list(path: &str) -> Result<(), io::Error> {
+fn list(path: &Path) -> Result<(), io::Error> {
 	let dir = fs::read_dir(path)?;
 
 	for entry in dir {
-		let entry = match entry {
-			Ok(entry) => entry,
-			Err(e) => return Err(e),
-		};
-
+		let entry = entry?;
 		let file_type = entry.file_type()?;
 
 		/*
@@ -41,21 +39,10 @@ fn list(path: &str) -> Result<(), io::Error> {
 		If the file is a symlink, println it
 		*/
 		if file_type.is_dir() {
-			match entry.path().to_str() {
-				Some(path) => {
-					match list(path) {
-						Ok(_) => {},
-						Err(e) => return Err(e),
-					};
-				},
-				None => return Err(io::Error::new(io::ErrorKind::Other, "File name not unicode")),
-			}
+			list(&entry.path())?;
 		}
 		else if file_type.is_symlink() {
-			match entry.path().to_str() {
-				Some(path) => println!("{}", path),
-				None => return Err(io::Error::new(io::ErrorKind::Other, "File name not unicode")),
-			}
+			println!("{}", &entry.path().display());
 		}
 	}
 	Ok(())
