@@ -1,14 +1,13 @@
 use std::env;
 use std::io;
 use std::fs;
+use std::fs::File;
 use std::path::Path;
 use std::process::Command;
 
 const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
-	let mut cmdline = env::args();
-
 	// get the path
 	let mut path = match env::var("XDG_DATA_HOME") {
 		Ok(home) => home,
@@ -20,6 +19,14 @@ fn main() -> Result<(), io::Error> {
 	path.push_str(ROOT_PATH);
 	let path = Path::new(&path);
 
+	// get editor. If EDITOR not set, use vim
+	let editor = match env::var("EDITOR") {
+		Ok(editor) => editor,
+		Err(_) => String::from("vim"),
+	};
+
+	let mut cmdline = env::args();
+	let argc = cmdline.len();
 	cmdline.next(); // get rid of argv[0]
 	let mut cmdline = cmdline.peekable();
 
@@ -38,12 +45,14 @@ fn main() -> Result<(), io::Error> {
 	};
 	
 	// print out files
+
 	for i in &files {
 		println!("Found file: {}", i);
 	}
 
 	// start vim
-	Command::new("vim")
+	Command::new("doas")
+		.arg(editor)
 		.args(&files)
 		.status()?;
 	Ok(())
@@ -68,4 +77,8 @@ fn list(path: &Path) -> Result<(), io::Error> {
 		}
 	}
 	Ok(())
+}
+
+fn hash(file: &File) -> u64 {
+	1
 }
