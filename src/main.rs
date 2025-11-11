@@ -2,6 +2,7 @@ use std::env;
 use std::io;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 const ROOT_PATH: &str = "/sudovim";
 
@@ -40,6 +41,11 @@ fn main() -> Result<(), io::Error> {
 	for i in &files {
 		println!("Found file: {}", i);
 	}
+
+	// start vim
+	Command::new("vim")
+		.args(&files)
+		.status()?;
 	Ok(())
 }
 
