@@ -4,6 +4,7 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 use std::process::Command;
+use std::io::ErrorKind;
 
 const ROOT_PATH: &str = "/sudovim";
 
@@ -26,11 +27,11 @@ fn main() -> Result<(), io::Error> {
 	};
 
 	let mut cmdline = env::args();
-	let argc = cmdline.len();
+	let argc: usize = cmdline.len();
 	cmdline.next(); // get rid of argv[0]
 	let mut cmdline = cmdline.peekable();
 
-	let files: Vec<String> = loop {
+	let file_names: Vec<String> = loop {
 		if let Some(arg) = cmdline.peek() {
 			if arg == "-l" {
 				println!("found argument: {}", arg);
@@ -44,16 +45,28 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 	
-	// print out files
+	let mut crcs: Vec<u64> = Vec::with_capacity(argc);
+	let mut files: Vec<Option<File>> = Vec::with_capacity(argc);
 
-	for i in &files {
+	for i in 0..file_names.len() {
 		println!("Found file: {}", i);
+
+		files[i] = match File::open(&file_names[i]) {
+			Ok(file) => Some(file),
+			Err(e) => match e.kind() {
+				ErrorKind::NotFound => None,
+				_ => return Err(e),
+			},
+		};
+
+		// hash the files
+		if let Some(file) = &files[i] { crcs[i] = hash(file) };
 	}
 
 	// start vim
 	Command::new("doas")
 		.arg(editor)
-		.args(&files)
+		.args(&file_names)
 		.status()?;
 	Ok(())
 }
