@@ -1,5 +1,6 @@
 use std::env;
 use std::io;
+use std::io::Read;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
@@ -27,8 +28,10 @@ fn main() -> Result<(), io::Error> {
 	};
 
 	let mut cmdline = env::args();
-	let argc: usize = cmdline.len();
 	cmdline.next(); // get rid of argv[0]
+	let argc: usize = cmdline.len();
+	println!("Commandline len: {}", argc);
+	if argc == 0 { return Ok(()) }
 	let mut cmdline = cmdline.peekable();
 
 	let file_names: Vec<String> = loop {
@@ -45,22 +48,25 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 	
-	let mut crcs: Vec<u64> = Vec::with_capacity(argc);
 	let mut files: Vec<Option<File>> = Vec::with_capacity(argc);
+	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
+	let mut crcs: Vec<u64> = Vec::with_capacity(argc);
 
-	for i in 0..file_names.len() {
-		println!("Found file: {}", i);
+	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
+	for name in &file_names {
+		println!("Found file: {}", name);
 
-		files[i] = match File::open(&file_names[i]) {
-			Ok(file) => Some(file),
+		files.push(match File::open(name) {
+			Ok(mut file) => {
+				sizes.push(file.read_to_end(&mut buffer)?);
+				crcs.push(hash(&buffer));
+				Some(file)
+			},
 			Err(e) => match e.kind() {
-				ErrorKind::NotFound => None,
+				ErrorKind::NotFound => None, // new file
 				_ => return Err(e),
 			},
-		};
-
-		// hash the files
-		if let Some(file) = &files[i] { crcs[i] = hash(file) };
+		});
 	}
 
 	// start vim
@@ -92,6 +98,6 @@ fn list(path: &Path) -> Result<(), io::Error> {
 	Ok(())
 }
 
-fn hash(file: &File) -> u64 {
+fn hash(bytes: &[u8]) -> u64 {
 	1
 }
