@@ -99,5 +99,34 @@ fn list(path: &Path) -> Result<(), io::Error> {
 }
 
 fn hash(bytes: &[u8]) -> u64 {
-	1
+	let mut crc_hash: u64 = 0;
+
+	let mut i = 0;
+	while i+8 < bytes.len() {
+		crc_hash ^= convert_u64(&bytes[i..i+8]);
+		i += 8;
+	}
+	crc_hash
+}
+
+fn convert_u64(bytes: &[u8]) -> u64 {
+	let mut target: u64 = 0;
+
+	let mut i = 0;
+	while i < 8 && i < bytes.len() {
+		target += (bytes[i] as u64) << (i * 8);
+		i += 1;
+	}
+	target
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn convert_u64_test() {
+		let result = convert_u64(&[0x78, 0x56, 0x34, 0x12]);
+		assert_eq!(result, 305419896);
+	}
 }
