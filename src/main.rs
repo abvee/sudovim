@@ -50,7 +50,7 @@ fn main() -> Result<(), io::Error> {
 	
 	let mut files: Vec<Option<File>> = Vec::with_capacity(argc);
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
-	let mut crcs: Vec<u64> = Vec::with_capacity(argc);
+	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
 	for name in &file_names {
@@ -59,7 +59,7 @@ fn main() -> Result<(), io::Error> {
 		files.push(match File::open(name) {
 			Ok(mut file) => {
 				sizes.push(file.read_to_end(&mut buffer)?);
-				crcs.push(hash(&buffer));
+				hashes.push(hash(&buffer));
 				Some(file)
 			},
 			Err(e) => match e.kind() {
@@ -98,15 +98,18 @@ fn list(path: &Path) -> Result<(), io::Error> {
 	Ok(())
 }
 
+// Just a hash by XORing the 8 bytes together.
+// There is a very small chance that if the file sizes are the same, the hashes
+// would also be the same.
 fn hash(bytes: &[u8]) -> u64 {
-	let mut crc_hash: u64 = 0;
+	let mut hash_: u64 = 0;
 
 	let mut i = 0;
 	while i+8 < bytes.len() {
-		crc_hash ^= convert_u64(&bytes[i..i+8]);
+		hash_ ^= convert_u64(&bytes[i..i+8]);
 		i += 8;
 	}
-	crc_hash
+	hash_
 }
 
 fn convert_u64(bytes: &[u8]) -> u64 {
@@ -128,5 +131,12 @@ mod tests {
 	fn convert_u64_test() {
 		let result = convert_u64(&[0x78, 0x56, 0x34, 0x12]);
 		assert_eq!(result, 305419896);
+	}
+
+	#[test]
+	fn hash_test() -> Result<(), io::Error> {
+		let bytes = fs::read(Path::new("./src/main.rs"))?;
+		println!("{:x}", hash(&bytes));
+		Ok(())
 	}
 }
