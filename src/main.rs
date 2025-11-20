@@ -53,8 +53,13 @@ fn main() -> Result<(), io::Error> {
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
+
 	for name in &file_names {
 		println!("Found file: {}", name);
+
+		if check_subdir(&path, Path::new(name))? {
+			continue
+		}
 
 		files.push(match File::open(name) {
 			Ok(mut file) => {
@@ -123,6 +128,26 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 	target
 }
 
+fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
+	// get the path to check
+	// if that path doesn't exist at all, return false'
+	let subdir = match subdir.canonicalize() {
+		Ok(existing_dir) => existing_dir,
+		Err(e) => return match e.kind() {
+			ErrorKind::NotFound => Ok(false),
+			_ => Err(e),
+		},
+	};
+
+	let check_path = path.join(
+		subdir.canonicalize()?
+			.as_path()
+			.strip_prefix("/")
+			.expect("file name is did not canonicalize")
+	);
+	Ok(check_path.exists())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -137,6 +162,22 @@ mod tests {
 	fn hash_test() -> Result<(), io::Error> {
 		let bytes = fs::read(Path::new("./src/main.rs"))?;
 		println!("{:x}", hash(&bytes));
+		Ok(())
+	}
+
+	#[test]
+	fn check_subdir_test() -> Result<(), io::Error> {
+		let mut path = match env::var("XDG_DATA_HOME") {
+			Ok(home) => home,
+			Err(_) => match env::var("HOME") {
+				Ok(path) => path,
+				Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "HOME is not set variables")),
+			},
+		};
+		path.push_str(ROOT_PATH);
+		let path = Path::new(&path);
+
+		println!("{}", check_subdir(&path, Path::new("/tmp"))?);
 		Ok(())
 	}
 }
