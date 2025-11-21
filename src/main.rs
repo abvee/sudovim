@@ -4,8 +4,8 @@ use std::io::Read;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
-use std::io::ErrorKind;
 
 const ROOT_PATH: &str = "/sudovim";
 
@@ -48,30 +48,54 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 	
-	let mut files: Vec<Option<File>> = Vec::with_capacity(argc);
+	let mut files: Vec<File> = Vec::with_capacity(argc);
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
+	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
-
 	for name in &file_names {
 		println!("Found file: {}", name);
+		/*
+		canonicalize paths.
 
-		if check_subdir(&path, Path::new(name))? {
-			continue
-		}
+		if the file doesn't exist, canonicalize will fail, so we push None
+		*/
+		match PathBuf::from(name).canonicalize() {
+			Ok(real_path) => {
 
-		files.push(match File::open(name) {
-			Ok(mut file) => {
-				sizes.push(file.read_to_end(&mut buffer)?);
-				hashes.push(hash(&buffer));
-				Some(file)
+				// we can also push none if the file already exists in the /sudovim
+				// folder
+				if check_subdir(path, &real_path)? {
+					real_paths.push(None);
+					continue
+				}
+				real_paths.push(Some(real_path));
 			},
 			Err(e) => match e.kind() {
-				ErrorKind::NotFound => None, // new file
+				io::ErrorKind::NotFound => {
+					real_paths.push(None);
+					continue
+				},
 				_ => return Err(e),
-			},
-		});
+			}
+		}
+
+		// at this point, if the file doesn't exist, we've messed up
+		assert_ne!(None, real_paths.last());
+
+		let file_path = real_paths.last()
+			.unwrap()
+			.as_ref()
+			.unwrap();
+		// This ^ cannot fail. See assertion above
+
+		let mut file = File::open(file_path)?;
+		sizes.push(
+			file.read_to_end(&mut buffer)?
+		);
+		hashes.push(hash(&buffer));
+		files.push(file);
 	}
 
 	// start vim
@@ -128,23 +152,14 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 	target
 }
 
+// check if subdir is a subdirectory of path
+// assume both paths are canonicalized, will fail if not
 fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
-	// get the path to check
-	// if that path doesn't exist at all, return false'
-	let subdir = match subdir.canonicalize() {
-		Ok(existing_dir) => existing_dir,
-		Err(e) => return match e.kind() {
-			ErrorKind::NotFound => Ok(false),
-			_ => Err(e),
-		},
-	};
-
 	let check_path = path.join(
-		subdir.canonicalize()?
-			.as_path()
-			.strip_prefix("/")
+		subdir.strip_prefix("/")
 			.expect("file name is did not canonicalize")
 	);
+	println!("{}", check_path.display());
 	Ok(check_path.exists())
 }
 
@@ -178,6 +193,7 @@ mod tests {
 		let path = Path::new(&path);
 
 		println!("{}", check_subdir(&path, Path::new("/tmp"))?);
+		println!("{}", check_subdir(&path, Path::new("/etc/portage"))?);
 		Ok(())
 	}
 }
