@@ -51,10 +51,12 @@ fn main() -> Result<(), io::Error> {
 	let mut files: Vec<File> = Vec::with_capacity(argc);
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
+	let mut existing_files: Vec<bool> = vec![false; argc];
 	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
-	for name in &file_names {
+	for i in 0..file_names.len() {
+		let name = &file_names[i];
 		println!("Found file: {}", name);
 		/*
 		canonicalize paths.
@@ -67,8 +69,7 @@ fn main() -> Result<(), io::Error> {
 				// we can also push none if the file already exists in the /sudovim
 				// folder
 				if check_subdir(path, &real_path)? {
-					real_paths.push(None);
-					continue
+					existing_files[i] = true;
 				}
 				real_paths.push(Some(real_path));
 			},
