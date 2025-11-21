@@ -6,6 +6,7 @@ use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::os::unix::fs::symlink;
 
 const ROOT_PATH: &str = "/sudovim";
 
@@ -104,6 +105,23 @@ fn main() -> Result<(), io::Error> {
 		.arg(editor)
 		.args(&file_names)
 		.status()?;
+
+	// now check the files again ?
+	for i in 0..file_names.len() {
+		if existing_files[i] {
+			continue
+		}
+		// `None` means the file could be new
+		if let None = real_paths[i] {
+			// check if it exists now ?
+			let p = Path::new(&file_names[i]);
+			if p.exists() {
+				add(&path, p)?;
+			}
+		} else if let Some(file_path) = &real_paths[i] {
+			// handle creating symlink if the file has been changed here
+		}
+	}
 	Ok(())
 }
 
@@ -162,6 +180,16 @@ fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
 	);
 	println!("{}", check_path.display());
 	Ok(check_path.exists())
+}
+
+// add the path under sudovim
+fn add(path: &Path, subdir: &Path) -> Result<(), io::Error> {
+	let add_path = path.join(
+		subdir.strip_prefix("/")
+			.expect("file isn't canonicalized")
+	);
+	symlink(subdir, add_path)?;
+	Ok(())
 }
 
 #[cfg(test)]
