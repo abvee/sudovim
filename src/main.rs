@@ -12,15 +12,15 @@ const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
 	// get the path
-	let mut path = match env::var("XDG_DATA_HOME") {
+	let mut root_path = match env::var("XDG_DATA_HOME") {
 		Ok(home) => home,
 		Err(_) => match env::var("HOME") {
 			Ok(path) => path,
 			Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "HOME is not set variables")),
 		},
 	};
-	path.push_str(ROOT_PATH);
-	let path = Path::new(&path);
+	root_path.push_str(ROOT_PATH);
+	let root_path = Path::new(&root_path);
 
 	// get editor. If EDITOR not set, use vim
 	let editor = match env::var("EDITOR") {
@@ -39,7 +39,7 @@ fn main() -> Result<(), io::Error> {
 		if let Some(arg) = cmdline.peek() {
 			if arg == "-l" {
 				println!("found argument: {}", arg);
-				return list(&path);
+				return list(&root_path);
 			}
 
 			if &arg[0..1] != "-" {
@@ -69,7 +69,7 @@ fn main() -> Result<(), io::Error> {
 
 				// we can also push none if the file already exists in the /sudovim
 				// folder
-				if check_subdir(path, &real_path)? {
+				if check_subdir(root_path, &real_path)? {
 					existing_files[i] = true;
 				}
 				real_paths.push(Some(real_path));
@@ -116,7 +116,7 @@ fn main() -> Result<(), io::Error> {
 			// check if it exists now ?
 			let p = Path::new(&file_names[i]);
 			if p.exists() {
-				add(&path, p)?;
+				add(&root_path, p)?;
 			}
 		} else if let Some(file_path) = &real_paths[i] {
 			// handle creating symlink if the file has been changed here
