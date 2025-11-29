@@ -49,55 +49,30 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 	
+	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
 	let mut files: Vec<File> = Vec::with_capacity(argc);
+	let mut new_files: Vec<bool> = Vec::with_capacity(argc);
+	// index of new files ^
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
-	let mut existing_files: Vec<bool> = vec![false; argc];
-	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 
-	let mut buffer: Vec<u8> = Vec::new(); // general purpose buffer
-	for i in 0..file_names.len() {
-		let name = &file_names[i];
-		println!("Found file: {}", name);
-		/*
-		canonicalize paths.
+	let mut buffer: Vec<u8> = Vec::new();
+	for name in &file_names {
+		let p = Path::new(name);
+		paths.push(p);
 
-		if the file doesn't exist, canonicalize will fail, so we push None
-		*/
-		match PathBuf::from(name).canonicalize() {
-			Ok(real_path) => {
+		if p.exists() {
+			new_files.push(true);
 
-				// we can also push none if the file already exists in the /sudovim
-				// folder
-				if check_subdir(root_path, &real_path)? {
-					existing_files[i] = true;
-				}
-				real_paths.push(Some(real_path));
-			},
-			Err(e) => match e.kind() {
-				io::ErrorKind::NotFound => {
-					real_paths.push(None);
-					continue
-				},
-				_ => return Err(e),
-			}
+			let mut file = File::open(p)?;
+			sizes.push(
+				file.read_to_end(&mut buffer)?
+			);
+			hashes.push(hash(&buffer));
+			files.push(file);
+		} else {
+			new_files.push(false);
 		}
-
-		// at this point, if the file doesn't exist, we've messed up
-		assert_ne!(None, real_paths.last());
-
-		let file_path = real_paths.last()
-			.unwrap()
-			.as_ref()
-			.unwrap();
-		// This ^ cannot fail. See assertion above
-
-		let mut file = File::open(file_path)?;
-		sizes.push(
-			file.read_to_end(&mut buffer)?
-		);
-		hashes.push(hash(&buffer));
-		files.push(file);
 	}
 
 	// start vim
@@ -107,21 +82,21 @@ fn main() -> Result<(), io::Error> {
 		.status()?;
 
 	// now check the files again ?
-	for i in 0..file_names.len() {
-		if existing_files[i] {
-			continue
-		}
-		// `None` means the file could be new
-		if let None = real_paths[i] {
-			// check if it exists now ?
-			let p = Path::new(&file_names[i]);
-			if p.exists() {
-				add(&root_path, p)?;
-			}
-		} else if let Some(file_path) = &real_paths[i] {
-			// handle creating symlink if the file has been changed here
-		}
-	}
+	// for i in 0..file_names.len() {
+	// 	if existing_files[i] {
+	// 		continue
+	// 	}
+	// 	// `None` means the file could be new
+	// 	if let None = real_paths[i] {
+	// 		// check if it exists now ?
+	// 		let p = Path::new(&file_names[i]);
+	// 		if p.exists() {
+	// 			add(&root_path, p)?;
+	// 		}
+	// 	} else if let Some(file_path) = &real_paths[i] {
+	// 		// handle creating symlink if the file has been changed here
+	// 	}
+	// }
 	Ok(())
 }
 
