@@ -3,8 +3,11 @@ use std::io;
 use std::io::Read;
 use std::fs;
 use std::fs::File;
-use std::path::Path;
-use std::path::PathBuf;
+
+use std::path;
+use path::Path;
+use path::PathBuf;
+
 use std::process::Command;
 use std::os::unix::fs::symlink;
 
@@ -48,31 +51,12 @@ fn main() -> Result<(), io::Error> {
 		} else { break cmdline.collect() };
 		// NOTE: this ^ else breaks null
 	};
-	
-	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
-	let mut files: Vec<File> = Vec::with_capacity(argc);
-	let mut new_files: Vec<bool> = Vec::with_capacity(argc);
-	// index of new files ^
-	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
-	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
-	let mut buffer: Vec<u8> = Vec::new();
+	let real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
+
 	for name in &file_names {
-		let p = Path::new(name);
-		paths.push(p);
+		println!("Found file name: {}", name);
 
-		if p.exists() {
-			new_files.push(true);
-
-			let mut file = File::open(p)?;
-			sizes.push(
-				file.read_to_end(&mut buffer)?
-			);
-			hashes.push(hash(&buffer));
-			files.push(file);
-		} else {
-			new_files.push(false);
-		}
 	}
 
 	// start vim
@@ -81,22 +65,6 @@ fn main() -> Result<(), io::Error> {
 		.args(&file_names)
 		.status()?;
 
-	// now check the files again ?
-	// for i in 0..file_names.len() {
-	// 	if existing_files[i] {
-	// 		continue
-	// 	}
-	// 	// `None` means the file could be new
-	// 	if let None = real_paths[i] {
-	// 		// check if it exists now ?
-	// 		let p = Path::new(&file_names[i]);
-	// 		if p.exists() {
-	// 			add(&root_path, p)?;
-	// 		}
-	// 	} else if let Some(file_path) = &real_paths[i] {
-	// 		// handle creating symlink if the file has been changed here
-	// 	}
-	// }
 	Ok(())
 }
 
@@ -144,6 +112,11 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 		i += 1;
 	}
 	target
+}
+
+fn absolutize<P: AsRef<Path>>(p: P) -> Result<PathBuf, io::Error> {
+	let p = p.as_ref();
+	Ok(env::current_dir()?.join(p))
 }
 
 // check if subdir is a subdirectory of path
