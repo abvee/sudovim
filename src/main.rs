@@ -52,11 +52,41 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 
-	let real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
+	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
+	// None => files doesn't exist yet
+	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
+	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
+	let mut buffer: Vec<u8> = Vec::new();
 	for name in &file_names {
 		println!("Found file name: {}", name);
+		let p = PathBuf::from(name);
 
+		if !p.exists() {
+			println!("File doesn't exist yet");
+			real_paths.push(None);
+			continue;
+		}
+
+		// get the path of the file
+		let mut file = File::open(&p)?;
+		sizes.push(
+			file.read_to_end(&mut buffer)?
+		);
+		println!("{} size: {}", name, sizes.last().unwrap());
+
+		hashes.push(hash(&buffer));
+		println!("{} hash: {}", name, hashes.last().unwrap());
+
+		real_paths.push(
+			Some(p.canonicalize()?)
+		);
+		println!("full path: {}", real_paths.last()
+			.unwrap()
+			.as_ref()
+			.unwrap()
+			.display()
+		);
 	}
 
 	// start vim
