@@ -162,9 +162,11 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 // check if subdir is a subdirectory of path
 // assume both paths are canonicalized, will fail if not
 fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
+	assert!(subdir.is_absolute());
+
 	let check_path = path.join(
 		subdir.strip_prefix("/")
-			.expect("file name is did not canonicalize")
+			.expect("file name did not canonicalize")
 	);
 	Ok(check_path.exists())
 }
