@@ -18,19 +18,17 @@ $ sudovim <list of files>
 This will launch your `$EDITOR` as root. Any files you change will then have
 their path saved in `XDG_DATA_HOME/sudovim`
 # Compiling and Installation
-You need minimally have zig-0.12.0 installed to compile the program. Build it
-with:
+I've built with Rust 1.91.1 as of last testing with the same cargo version, so
+use that if something goes wrong.
+I know the Rust core lib is different, so idk which version that is
 ```
-$ zig build
+$ cargo build --release
 ```
-Install it to a specific directory with:
-```
-# zig build -p /usr/local
-```
-This will install it to `/usr/local/bin`
+PKGBUILD coming soon
 # Unfinished things
 * It doesn't track creating files from inside the editor. **Eg**: using
-`:e` in vim
+`:e` in vim. This would require ptrace shenanigans that I don't know how to use
+* PKGBUILD
 # Non Features
 * You can add paths to `XDG_DATA_HOME/sudovim` yourself with `ln`. `sudovim`
 probably will never manual adding of paths, because that just makes it a worse
