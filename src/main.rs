@@ -116,14 +116,45 @@ fn main() -> Result<(), io::Error> {
 		.status()?;
 
 	// check the hashes and everything again
+	let mut sizes = sizes.into_iter();
+	let mut hashes = hashes.into_iter();
 	println!("");
 	for i in 0..file_names.len() {
 		let name = &file_names[i];
 
 		// check if it exists
 		if existing[i] {
-			println!("{} already exists", name);
+			println!("{} already has a symlink", name);
 			continue;
+		}
+
+		// check if a new file has been created
+		if let None = real_paths[i] {
+			if paths[i].exists() {
+				println!("Creating symlink for new file {}", paths[i].display());
+				// TODO: create symlink
+			} else {
+				println!("file {} not created", paths[i].display());
+				// TODO: Do something other than this debug message here
+			}
+			continue;
+		}
+
+		// The file exists
+		let real_path = real_paths[i].take().unwrap();
+		// NOTE: take() ^ transfers ownership, does not allocate again
+
+		// get the size and hash
+		let mut file = File::open(&real_path)?;
+		let size = file.read_to_end(&mut buffer)?;
+
+		if size != sizes.next().unwrap() {
+			println!("file sizes differ, creating symlink to {}", real_path.display());
+			// TODO: make symlink function here
+		}
+		else if hash(&buffer) != hashes.next().unwrap() {
+			// TODO: symlink function here
+			println!("Hashes differ, creating symlink to {}", real_path.display());
 		}
 	}
 	Ok(())
