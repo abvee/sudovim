@@ -54,21 +54,36 @@ fn main() -> Result<(), io::Error> {
 
 	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 	// None => files doesn't exist yet
+	let mut existing: Vec<bool> = Vec::with_capacity(argc);
+	// store if flag has symlink already under &root
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new();
 	for name in &file_names {
 		println!("Found file name: {}", name);
-		let p = PathBuf::from(name);
 
+		// get path of file
+		let p = PathBuf::from(name);
 		if !p.exists() {
 			println!("File doesn't exist yet");
 			real_paths.push(None);
 			continue;
 		}
+		let p = p.canonicalize()?;
 
-		// get the path of the file
+		// check if file already exists
+		if check_subdir(&root_path, &p)? {
+			existing.push(true);
+			println!("{} already exists under {}",
+				p.display(),
+				root_path.display()
+			);
+			continue;
+		}
+		existing.push(false);
+
+		// get size of file and it's hash
 		let mut file = File::open(&p)?;
 		sizes.push(
 			file.read_to_end(&mut buffer)?
@@ -79,7 +94,7 @@ fn main() -> Result<(), io::Error> {
 		println!("{} hash: {}", name, hashes.last().unwrap());
 
 		real_paths.push(
-			Some(p.canonicalize()?)
+			Some(p)
 		);
 		println!("full path: {}", real_paths.last()
 			.unwrap()
@@ -144,11 +159,6 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 	target
 }
 
-fn absolutize<P: AsRef<Path>>(p: P) -> Result<PathBuf, io::Error> {
-	let p = p.as_ref();
-	Ok(env::current_dir()?.join(p))
-}
-
 // check if subdir is a subdirectory of path
 // assume both paths are canonicalized, will fail if not
 fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
@@ -156,7 +166,6 @@ fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
 		subdir.strip_prefix("/")
 			.expect("file name is did not canonicalize")
 	);
-	println!("{}", check_path.display());
 	Ok(check_path.exists())
 }
 
