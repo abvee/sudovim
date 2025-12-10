@@ -54,6 +54,7 @@ fn main() -> Result<(), io::Error> {
 
 	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 	// None => files doesn't exist yet
+	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
 	let mut existing: Vec<bool> = Vec::with_capacity(argc);
 	// store if flag has symlink already under &root
 	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
@@ -67,7 +68,8 @@ fn main() -> Result<(), io::Error> {
 		real_paths.push(None);
 
 		// get path of file
-		let p = PathBuf::from(name);
+		let p = Path::new(name);
+		paths.push(p); // slices get copied
 		if !p.exists() {
 			println!("File doesn't exist yet");
 			continue;
@@ -75,8 +77,9 @@ fn main() -> Result<(), io::Error> {
 		let p = p.canonicalize()?;
 
 		// check if file already exists
-		if check_subdir(&root_path, &p)? {
-			existing[i] = true;
+		let exists = check_subdir(&root_path, &p)?;
+		existing[i] = exists;
+		if exists {
 			println!("{} already exists under {}",
 				p.display(),
 				root_path.display()
@@ -113,6 +116,16 @@ fn main() -> Result<(), io::Error> {
 		.status()?;
 
 	// check the hashes and everything again
+	println!("");
+	for i in 0..file_names.len() {
+		let name = &file_names[i];
+
+		// check if it exists
+		if existing[i] {
+			println!("{} already exists", name);
+			continue;
+		}
+	}
 	Ok(())
 }
 
