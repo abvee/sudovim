@@ -60,28 +60,29 @@ fn main() -> Result<(), io::Error> {
 	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new();
-	for name in &file_names {
+	for i in 0..file_names.len() {
+		let name = &file_names[i];
 		println!("Found file name: {}", name);
+		existing.push(false);
+		real_paths.push(None);
 
 		// get path of file
 		let p = PathBuf::from(name);
 		if !p.exists() {
 			println!("File doesn't exist yet");
-			real_paths.push(None);
 			continue;
 		}
 		let p = p.canonicalize()?;
 
 		// check if file already exists
 		if check_subdir(&root_path, &p)? {
-			existing.push(true);
+			existing[i] = true;
 			println!("{} already exists under {}",
 				p.display(),
 				root_path.display()
 			);
 			continue;
 		}
-		existing.push(false);
 
 		// get size of file and it's hash
 		let mut file = File::open(&p)?;
@@ -93,9 +94,7 @@ fn main() -> Result<(), io::Error> {
 		hashes.push(hash(&buffer));
 		println!("{} hash: {}", name, hashes.last().unwrap());
 
-		real_paths.push(
-			Some(p)
-		);
+		real_paths[i] = Some(p);
 		println!("full path: {}", real_paths.last()
 			.unwrap()
 			.as_ref()
@@ -104,12 +103,16 @@ fn main() -> Result<(), io::Error> {
 		);
 	}
 
+	assert_eq!(file_names.len(), real_paths.len());
+	assert_eq!(file_names.len(), existing.len());
+
 	// start vim
 	Command::new("doas")
 		.arg(editor)
 		.args(&file_names)
 		.status()?;
 
+	// check the hashes and everything again
 	Ok(())
 }
 
