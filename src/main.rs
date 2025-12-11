@@ -220,10 +220,20 @@ fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
 
 // add the path under sudovim
 fn add(path: &Path, subdir: &Path) -> Result<(), io::Error> {
+	assert!(subdir.is_absolute());
+
 	let add_path = path.join(
 		subdir.strip_prefix("/")
 			.expect("file isn't canonicalized")
 	);
+
+	fs::create_dir_all(
+		match add_path.parent() {
+			Some(p) => p,
+			None => return Err(io::Error::new(io::ErrorKind::Other, "Empty string or root dir passed to add()")),
+		}
+	)?;
+
 	symlink(subdir, add_path)?;
 	Ok(())
 }
@@ -259,6 +269,18 @@ mod tests {
 
 		println!("{}", check_subdir(&path, Path::new("/tmp"))?);
 		println!("{}", check_subdir(&path, Path::new("/etc/portage"))?);
+		Ok(())
+	}
+
+	#[test]
+	fn add_test() -> Result<(), io::Error> {
+		println!("ADD TEST");
+		let cwd = PathBuf::from(".").canonicalize()
+			.unwrap();
+		let p = Path::new("/tests/testing/other");
+
+		add(&cwd, p)?;
+		println!("ADD TEST END");
 		Ok(())
 	}
 }
