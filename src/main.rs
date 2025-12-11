@@ -15,13 +15,8 @@ const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
 	// get the path
-	let mut root_path = match env::var("XDG_DATA_HOME") {
-		Ok(home) => home,
-		Err(_) => match env::var("HOME") {
-			Ok(path) => path,
-			Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "HOME is not set variables")),
-		},
-	};
+	let mut root_path = env::var("XDG_DATA_HOME")
+		.expect("XDG_DATA_HOME environment variable not set, please set it");
 	root_path.push_str(ROOT_PATH);
 	let root_path = Path::new(&root_path);
 
