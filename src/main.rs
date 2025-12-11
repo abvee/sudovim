@@ -132,10 +132,9 @@ fn main() -> Result<(), io::Error> {
 		if let None = real_paths[i] {
 			if paths[i].exists() {
 				println!("Creating symlink for new file {}", paths[i].display());
-				// TODO: create symlink
+				add(root_path, &paths[i].canonicalize()?)?;
 			} else {
 				println!("file {} not created", paths[i].display());
-				// TODO: Do something other than this debug message here
 			}
 			continue;
 		}
@@ -148,13 +147,12 @@ fn main() -> Result<(), io::Error> {
 		let mut file = File::open(&real_path)?;
 		let size = file.read_to_end(&mut buffer)?;
 
-		if size != sizes.next().unwrap() {
-			println!("file sizes differ, creating symlink to {}", real_path.display());
-			// TODO: make symlink function here
-		}
-		else if hash(&buffer) != hashes.next().unwrap() {
-			// TODO: symlink function here
-			println!("Hashes differ, creating symlink to {}", real_path.display());
+		// I hope that rust has short circuting
+		if size != sizes.next().unwrap()
+			||
+		hash(&buffer) != hashes.next().unwrap() {
+			println!("{} modified, creating symlink", real_path.display());
+			add(root_path, &real_path)?;
 		}
 	}
 	Ok(())
