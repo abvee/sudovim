@@ -66,6 +66,7 @@ fn main() -> Result<(), io::Error> {
 		println!("Found file name: {}", name);
 		existing.push(false);
 		real_paths.push(None);
+		buffer.clear();
 
 		// get path of file
 		let p = Path::new(name);
@@ -140,6 +141,7 @@ fn main() -> Result<(), io::Error> {
 		}
 
 		// The file exists
+		buffer.clear();
 		let real_path = real_paths[i].take().unwrap();
 		// NOTE: take() ^ transfers ownership, does not allocate again
 
@@ -153,6 +155,8 @@ fn main() -> Result<(), io::Error> {
 		hash(&buffer) != hashes.next().unwrap() {
 			println!("{} modified, creating symlink", real_path.display());
 			add(root_path, &real_path)?;
+		} else {
+			println!("{} not modified, symlink not created", real_path.display());
 		}
 	}
 	Ok(())
