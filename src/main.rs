@@ -11,6 +11,8 @@ use path::PathBuf;
 use std::process::Command;
 use std::os::unix::fs::symlink;
 
+mod xxhash;
+
 const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
