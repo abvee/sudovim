@@ -12,6 +12,7 @@ const PRIMES: [Wrapping<u64>; 5]= [
 pub trait XXhash64 {
 	fn hash(&self) -> u64;
 }
+
 fn init_state(state: &mut [Wrapping<u64>; 4]) {
 	state[0] += PRIMES[0] + PRIMES[1];
 	state[1] += PRIMES[1];
@@ -19,10 +20,22 @@ fn init_state(state: &mut [Wrapping<u64>; 4]) {
 	state[3] -= PRIMES[0];
 }
 
+fn rot_left(input: u64, shift: u64) -> u64 {
+	input << shift | input >> (64 - shift)
+}
+// does a single iteration of processing
+fn process(prev_state: Wrapping<u64>, input: u64) -> Wrapping<u64> {
+	Wrapping(
+		rot_left((prev_state + Wrapping(input) * PRIMES[1]).0, 31)
+	) * PRIMES[0]
+}
+
 impl XXhash64 for Vec<u8> {
 	fn hash(&self) -> u64 {
 		let mut state: [Wrapping<u64>; 4] = [Wrapping(SEED); 4];
 		init_state(&mut state);
+
+		let mut i = 0;
 		1
 	}
 }
