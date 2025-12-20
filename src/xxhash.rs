@@ -30,12 +30,42 @@ fn process(prev_state: Wrapping<u64>, input: u64) -> Wrapping<u64> {
 	) * PRIMES[0]
 }
 
+// NOTE:
+// We need to do some experimentation here. raw pointers might be faster than
+// stack allocating arrays here
+// We also don't know the complexity of try_into(), which returns a
+// result to unwrap as well
+#[inline]
+fn make_block(data: &[u8]) -> [u64; 4] {
+	assert!(data.len() == 32);
+	[
+		u64::from_le_bytes(data[0..8].try_into().unwrap()),
+		u64::from_le_bytes(data[8..16].try_into().unwrap()),
+		u64::from_le_bytes(data[16..24].try_into().unwrap()),
+		u64::from_le_bytes(data[24..32].try_into().unwrap()),
+	]
+}
+
 impl XXhash64 for Vec<u8> {
 	fn hash(&self) -> u64 {
 		let mut state: [Wrapping<u64>; 4] = [Wrapping(SEED); 4];
 		init_state(&mut state);
 
 		let mut i = 0;
+		let stop = self.len() - 32;
+		while i < stop {
+			let block = make_block(&self[i..i+32]);
+			state[0] = process(state[0], block[0]);
+			state[1] = process(state[1], block[1]);
+			state[2] = process(state[2], block[2]);
+			state[3] = process(state[3], block[3]);
+			i += 32;
+		}
 		1
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
 }
