@@ -53,7 +53,7 @@ impl XXhash64 for Vec<u8> {
 
 		let mut i = 0;
 		let stop = self.len() - 32;
-		while i < stop {
+		while i <= stop {
 			let block = make_block(&self[i..i+32]);
 			state[0] = process(state[0], block[0]);
 			state[1] = process(state[1], block[1]);
@@ -61,6 +61,23 @@ impl XXhash64 for Vec<u8> {
 			state[3] = process(state[3], block[3]);
 			i += 32;
 		}
+
+		// input length less than 32 bytes means that the previous 4 lane split
+		// has not occured
+		let result: Wrapping<u64> = if self.len() < 32 {
+			state[2] + PRIMES[4]
+		} else {
+			let mut tmp =
+				Wrapping(rot_left(state[0].0, 1)) +
+				Wrapping(rot_left(state[1].0, 7)) +
+				Wrapping(rot_left(state[2].0, 12)) +
+				Wrapping(rot_left(state[3].0, 18));
+			tmp = (tmp ^ process(Wrapping(0), state[0].0)) * PRIMES[0] + PRIMES[3];
+			tmp = (tmp ^ process(Wrapping(0), state[1].0)) * PRIMES[0] + PRIMES[3];
+			tmp = (tmp ^ process(Wrapping(0), state[2].0)) * PRIMES[0] + PRIMES[3];
+			tmp = (tmp ^ process(Wrapping(0), state[3].0)) * PRIMES[0] + PRIMES[3];
+			tmp
+		};
 		1
 	}
 }
