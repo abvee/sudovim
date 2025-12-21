@@ -64,7 +64,7 @@ impl XXhash64 for Vec<u8> {
 
 		// input length less than 32 bytes means that the previous 4 lane split
 		// has not occured
-		let result: Wrapping<u64> = if self.len() < 32 {
+		let mut result: Wrapping<u64> = if self.len() < 32 {
 			state[2] + PRIMES[4]
 		} else {
 			let mut tmp =
@@ -78,7 +78,14 @@ impl XXhash64 for Vec<u8> {
 			tmp = (tmp ^ process(Wrapping(0), state[3].0)) * PRIMES[0] + PRIMES[3];
 			tmp
 		};
-		1
+		result += Wrapping(self.len() as u64);
+
+		// Now all we need to technically do is process the remaining bytes
+		// First 8 bytes at a time
+		// Then 4 bytes at a time
+		// Lastly 1 byte at a time
+		// Then mix bits
+		result.0
 	}
 }
 
