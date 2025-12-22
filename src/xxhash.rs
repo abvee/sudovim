@@ -52,8 +52,7 @@ impl XXhash64 for Vec<u8> {
 		init_state(&mut state);
 
 		let mut i = 0;
-		let stop = self.len() - 32;
-		while i <= stop {
+		while i + 32 <= self.len() {
 			let block = make_block(&self[i..i+32]);
 			state[0] = process(state[0], block[0]);
 			state[1] = process(state[1], block[1]);
@@ -80,7 +79,17 @@ impl XXhash64 for Vec<u8> {
 		};
 		result += Wrapping(self.len() as u64);
 
-		// Now all we need to technically do is process the remaining bytes
+		// handle 8 bytes now
+		while i + 8 < self.len() {
+			result = Wrapping(rot_left(
+				result.0 ^ process(
+						Wrapping(0),
+						u64::from_le_bytes(self[i..i+8].try_into().unwrap())
+					).0,
+				27
+			));
+			i += 8;
+		}
 		// First 8 bytes at a time
 		// Then 4 bytes at a time
 		// Lastly 1 byte at a time
