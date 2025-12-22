@@ -81,15 +81,18 @@ impl XXhash64 for Vec<u8> {
 
 		// handle 8 bytes now
 		while i + 8 < self.len() {
+			let data = u64::from_le_bytes(self[i..i+8].try_into().unwrap());
+
 			result = Wrapping(rot_left(
 				result.0 ^ process(
 						Wrapping(0),
-						u64::from_le_bytes(self[i..i+8].try_into().unwrap())
+						data,
 					).0,
 				27
 			)) * PRIMES[1] + PRIMES[3];
 			i += 8;
 		}
+
 		// handle remainder 4 byte chunks
 		while i + 4 < self.len() {
 			let data = u32::from_le_bytes(self[i..i+4].try_into().unwrap())
@@ -100,8 +103,15 @@ impl XXhash64 for Vec<u8> {
 			)) * PRIMES[1] + PRIMES[2];
 			i += 4;
 		}
-		// Lastly 1 byte at a time
-		// Then mix bits
+
+		// single byte
+		while i < self.len() {
+			result = Wrapping(rot_left(
+				(result ^ Wrapping(self[i] as u64) * PRIMES[4]).0,
+				11
+			)) * PRIMES[0];
+			i += 1;
+		}
 		result.0
 	}
 }
