@@ -11,6 +11,8 @@ use path::PathBuf;
 use std::process::Command;
 use std::os::unix::fs::symlink;
 
+mod xxhash;
+
 const ROOT_PATH: &str = "/sudovim";
 
 fn main() -> Result<(), io::Error> {
@@ -192,7 +194,9 @@ fn hash(bytes: &[u8]) -> u64 {
 	hash_
 }
 
+#[inline]
 fn convert_u64(bytes: &[u8]) -> u64 {
+	/*
 	let mut target: u64 = 0;
 
 	let mut i = 0;
@@ -201,6 +205,8 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 		i += 1;
 	}
 	target
+	*/
+	u64::from_le_bytes(bytes[0..8].try_into().unwrap())
 }
 
 // check if subdir is a subdirectory of path
