@@ -87,11 +87,19 @@ impl XXhash64 for Vec<u8> {
 						u64::from_le_bytes(self[i..i+8].try_into().unwrap())
 					).0,
 				27
-			));
+			)) * PRIMES[1] + PRIMES[3];
 			i += 8;
 		}
-		// First 8 bytes at a time
-		// Then 4 bytes at a time
+		// handle remainder 4 byte chunks
+		while i + 4 < self.len() {
+			let data = u32::from_le_bytes(self[i..i+4].try_into().unwrap())
+				as u64;
+			result = Wrapping(rot_left(
+				(result ^ Wrapping(data) * PRIMES[0]).0,
+				23
+			)) * PRIMES[1] + PRIMES[2];
+			i += 4;
+		}
 		// Lastly 1 byte at a time
 		// Then mix bits
 		result.0
