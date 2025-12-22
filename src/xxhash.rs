@@ -112,6 +112,14 @@ impl XXhash64 for Vec<u8> {
 			)) * PRIMES[0];
 			i += 1;
 		}
+
+		// mixing
+		result ^= result >> 33;
+		result *= PRIMES[1];
+		result ^= result >> 29;
+		result *= PRIMES[2];
+		result ^= result >> 32;
+
 		result.0
 	}
 }
