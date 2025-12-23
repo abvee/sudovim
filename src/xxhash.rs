@@ -92,7 +92,7 @@ impl XXhash64 for Vec<u8> {
 						data,
 					).0,
 				27
-			)) * PRIMES[1] + PRIMES[3];
+			)) * PRIMES[0] + PRIMES[3];
 			i += 8;
 		}
 
@@ -141,8 +141,16 @@ mod tests {
 
 		let tests = [
 			Tests {
+				original: String::from("hi"),
+				hash: String::from("ea8842e9ea2638fa"),
+			},
+			Tests {
 				original: String::from("hello"),
-				hash: String::from("5388bd91d091c1e4")
+				hash: String::from("26c7827d889f6da3")
+			},
+			Tests {
+				original: String::from("Lorem ipsum dolor sit amet, consectetur adipiscing elit"),
+				hash: String::from("fa732e3c8263f77b"),
 			},
 		];
 
