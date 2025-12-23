@@ -30,6 +30,20 @@ fn process(prev_state: Wrapping<u64>, input: u64) -> Wrapping<u64> {
 	) * PRIMES[0]
 }
 
+#[inline]
+fn merge(state: &[Wrapping<u64>; 4]) -> Wrapping<u64> {
+	let mut tmp =
+		Wrapping(rot_left(state[0].0, 1)) +
+		Wrapping(rot_left(state[1].0, 7)) +
+		Wrapping(rot_left(state[2].0, 12)) +
+		Wrapping(rot_left(state[3].0, 18));
+	tmp = (tmp ^ process(Wrapping(0), state[0].0)) * PRIMES[0] + PRIMES[3];
+	tmp = (tmp ^ process(Wrapping(0), state[1].0)) * PRIMES[0] + PRIMES[3];
+	tmp = (tmp ^ process(Wrapping(0), state[2].0)) * PRIMES[0] + PRIMES[3];
+	tmp = (tmp ^ process(Wrapping(0), state[3].0)) * PRIMES[0] + PRIMES[3];
+	tmp
+}
+
 // NOTE:
 // We need to do some experimentation here. raw pointers might be faster than
 // stack allocating arrays here
@@ -48,34 +62,28 @@ fn make_block(data: &[u8]) -> [u64; 4] {
 
 impl XXhash64 for Vec<u8> {
 	fn hash(&self) -> u64 {
-		let mut state: [Wrapping<u64>; 4] = [Wrapping(SEED); 4];
-		init_state(&mut state);
+		let mut i = 0; // byte counter for vector
 
-		let mut i = 0;
-		while i + 32 <= self.len() {
-			let block = make_block(&self[i..i+32]);
-			state[0] = process(state[0], block[0]);
-			state[1] = process(state[1], block[1]);
-			state[2] = process(state[2], block[2]);
-			state[3] = process(state[3], block[3]);
-			i += 32;
-		}
-
-		// input length less than 32 bytes means that the previous 4 lane split
-		// has not occured
 		let mut result: Wrapping<u64> = if self.len() < 32 {
 			Wrapping(SEED) + PRIMES[4]
 		} else {
-			let mut tmp =
-				Wrapping(rot_left(state[0].0, 1)) +
-				Wrapping(rot_left(state[1].0, 7)) +
-				Wrapping(rot_left(state[2].0, 12)) +
-				Wrapping(rot_left(state[3].0, 18));
-			tmp = (tmp ^ process(Wrapping(0), state[0].0)) * PRIMES[0] + PRIMES[3];
-			tmp = (tmp ^ process(Wrapping(0), state[1].0)) * PRIMES[0] + PRIMES[3];
-			tmp = (tmp ^ process(Wrapping(0), state[2].0)) * PRIMES[0] + PRIMES[3];
-			tmp = (tmp ^ process(Wrapping(0), state[3].0)) * PRIMES[0] + PRIMES[3];
-			tmp
+			// NOTE: we only need to initialise state vectors and such if the
+			// input length is greater than 32 bytes
+			let mut state: [Wrapping<u64>; 4] = [Wrapping(SEED); 4];
+			init_state(&mut state);
+
+			// NOTE: most of the time should be spent here
+			while i + 32 <= self.len() {
+				let block = make_block(&self[i..i+32]);
+				state[0] = process(state[0], block[0]);
+				state[1] = process(state[1], block[1]);
+				state[2] = process(state[2], block[2]);
+				state[3] = process(state[3], block[3]);
+				i += 32;
+			}
+
+			// merge states
+			merge(&state)
 		};
 		result += Wrapping(self.len() as u64);
 
