@@ -64,7 +64,7 @@ impl XXhash64 for Vec<u8> {
 		// input length less than 32 bytes means that the previous 4 lane split
 		// has not occured
 		let mut result: Wrapping<u64> = if self.len() < 32 {
-			state[2] + PRIMES[4]
+			Wrapping(SEED) + PRIMES[4]
 		} else {
 			let mut tmp =
 				Wrapping(rot_left(state[0].0, 1)) +
@@ -80,7 +80,10 @@ impl XXhash64 for Vec<u8> {
 		result += Wrapping(self.len() as u64);
 
 		// handle 8 bytes now
-		while i + 8 < self.len() {
+		println!("length: {}", self.len());
+		println!("i: {}", i);
+
+		while i + 8 <= self.len() {
 			let data = u64::from_le_bytes(self[i..i+8].try_into().unwrap());
 
 			result = Wrapping(rot_left(
@@ -94,7 +97,7 @@ impl XXhash64 for Vec<u8> {
 		}
 
 		// handle remainder 4 byte chunks
-		while i + 4 < self.len() {
+		while i + 4 <= self.len() {
 			let data = u32::from_le_bytes(self[i..i+4].try_into().unwrap())
 				as u64;
 			result = Wrapping(rot_left(
@@ -102,6 +105,7 @@ impl XXhash64 for Vec<u8> {
 				23
 			)) * PRIMES[1] + PRIMES[2];
 			i += 4;
+			println!("4 byte eating i: {}", i);
 		}
 
 		// single byte
@@ -127,4 +131,28 @@ impl XXhash64 for Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_hash() {
+		struct Tests {
+			original: String,
+			hash: String,
+		}
+
+		let tests = [
+			Tests {
+				original: String::from("hello"),
+				hash: String::from("5388bd91d091c1e4")
+			},
+		];
+
+		for test in tests {
+			let buffer = test.original.clone().into_bytes();
+			println!("{}", buffer.len());
+			let hash = buffer.hash();
+			println!("hash for {} is: {:x}",test.original, hash);
+			println!("Original hash is {}", test.hash);
+			assert!(format!("{:x}", hash) == test.hash);
+		}
+	}
 }
