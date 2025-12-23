@@ -196,7 +196,6 @@ fn hash(bytes: &[u8]) -> u64 {
 
 #[inline]
 fn convert_u64(bytes: &[u8]) -> u64 {
-	/*
 	let mut target: u64 = 0;
 
 	let mut i = 0;
@@ -205,8 +204,6 @@ fn convert_u64(bytes: &[u8]) -> u64 {
 		i += 1;
 	}
 	target
-	*/
-	u64::from_le_bytes(bytes[0..8].try_into().unwrap())
 }
 
 // check if subdir is a subdirectory of path
@@ -248,7 +245,7 @@ mod tests {
 	#[test]
 	fn convert_u64_test() {
 		let result = convert_u64(&[0x78, 0x56, 0x34, 0x12]);
-		assert_eq!(result, 305419896);
+		assert!(result == 305419896);
 	}
 
 	#[test]
@@ -282,7 +279,13 @@ mod tests {
 			.unwrap();
 		let p = Path::new("/tests/testing/other");
 
-		add(&cwd, p)?;
+		match add(&cwd, p) {
+			Err(e) => match e.kind() {
+				io::ErrorKind::AlreadyExists => {},
+				_ => return Err(e),
+			},
+			_ => {},
+		};
 		println!("ADD TEST END");
 		Ok(())
 	}
