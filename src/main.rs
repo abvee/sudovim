@@ -15,6 +15,30 @@ mod xxhash;
 
 const ROOT_PATH: &str = "/sudovim";
 
+enum State {
+	Existing, // already has a symlink
+	New, // new file, dne yet
+	Process, // file has to be processed
+}
+
+// all the relevant info on the file
+struct FileInfo {
+	state: State,
+	path: PathBuf,
+	size: usize,
+	hash: u64,
+}
+impl FileInfo {
+	fn new(state: State, path: PathBuf) -> FileInfo {
+		FileInfo {
+			state,
+			path,
+			size: 0,
+			hash: 0,
+		}
+	}
+}
+
 fn main() -> Result<(), io::Error> {
 	// get the path
 	let mut root_path = env::var("XDG_DATA_HOME")
