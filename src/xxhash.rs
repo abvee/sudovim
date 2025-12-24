@@ -88,9 +88,6 @@ impl XXhash64 for Vec<u8> {
 		result += Wrapping(self.len() as u64);
 
 		// handle 8 bytes now
-		println!("length: {}", self.len());
-		println!("i: {}", i);
-
 		while i + 8 <= self.len() {
 			let data = u64::from_le_bytes(self[i..i+8].try_into().unwrap());
 
@@ -113,7 +110,6 @@ impl XXhash64 for Vec<u8> {
 				23
 			)) * PRIMES[1] + PRIMES[2];
 			i += 4;
-			println!("4 byte eating i: {}", i);
 		}
 
 		// single byte

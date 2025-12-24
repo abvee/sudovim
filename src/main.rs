@@ -76,13 +76,6 @@ fn main() -> Result<(), io::Error> {
 	};
 
 	let mut infos: Vec<FileInfo> = Vec::with_capacity(argc);
-	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
-	// None => files doesn't exist yet
-	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
-	let mut existing: Vec<bool> = Vec::with_capacity(argc);
-	// store if flag has symlink already under &root
-	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
-	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new();
 	for i in 0..file_names.len() {
@@ -136,8 +129,6 @@ fn main() -> Result<(), io::Error> {
 		.status()?;
 
 	// check the hashes and everything again
-	let mut sizes = sizes.into_iter();
-	let mut hashes = hashes.into_iter();
 	println!("");
 	for info in infos {
 		match info.state {
@@ -194,32 +185,6 @@ fn list(path: &Path) -> Result<(), io::Error> {
 	Ok(())
 }
 
-// Just a hash by XORing the 8 bytes together.
-// There is a very small chance that if the file sizes are the same, the hashes
-// would also be the same.
-fn hash(bytes: &[u8]) -> u64 {
-	let mut hash_: u64 = 0;
-
-	let mut i = 0;
-	while i+8 < bytes.len() {
-		hash_ ^= convert_u64(&bytes[i..i+8]);
-		i += 8;
-	}
-	hash_
-}
-
-#[inline]
-fn convert_u64(bytes: &[u8]) -> u64 {
-	let mut target: u64 = 0;
-
-	let mut i = 0;
-	while i < 8 && i < bytes.len() {
-		target += (bytes[i] as u64) << (i * 8);
-		i += 1;
-	}
-	target
-}
-
 // check if subdir is a subdirectory of path
 // assume both paths are canonicalized, will fail if not
 fn check_subdir(path: &Path, subdir: &Path) -> Result<bool, io::Error> {
@@ -255,19 +220,6 @@ fn add(path: &Path, subdir: &Path) -> Result<(), io::Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[test]
-	fn convert_u64_test() {
-		let result = convert_u64(&[0x78, 0x56, 0x34, 0x12]);
-		assert!(result == 305419896);
-	}
-
-	#[test]
-	fn hash_test() -> Result<(), io::Error> {
-		let bytes = fs::read(Path::new("./src/main.rs"))?;
-		println!("{:x}", hash(&bytes));
-		Ok(())
-	}
 
 	#[test]
 	fn check_subdir_test() -> Result<(), io::Error> {
