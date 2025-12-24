@@ -12,9 +12,11 @@ use std::process::Command;
 use std::os::unix::fs::symlink;
 
 mod xxhash;
+use xxhash::XXhash64;
 
 const ROOT_PATH: &str = "/sudovim";
 
+#[derive(Debug)]
 enum State {
 	Existing, // already has a symlink
 	New, // new file, dne yet
@@ -73,6 +75,7 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 
+	let mut infos: Vec<FileInfo> = Vec::with_capacity(argc);
 	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
 	// None => files doesn't exist yet
 	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
@@ -85,51 +88,45 @@ fn main() -> Result<(), io::Error> {
 	for i in 0..file_names.len() {
 		let name = &file_names[i];
 		println!("Found file name: {}", name);
-		existing.push(false);
-		real_paths.push(None);
+
 		buffer.clear();
 
-		// get path of file
-		let p = Path::new(name);
-		paths.push(p); // slices get copied
-		if !p.exists() {
+		infos.push(FileInfo::new(
+			State::Process,
+			PathBuf::from(name)
+		));
+		let info: &mut FileInfo = infos.last_mut().unwrap();
+
+		if !info.path.exists() {
 			println!("File doesn't exist yet");
+			info.state = State::New;
+			// infos.push(info);
 			continue;
 		}
-		let p = p.canonicalize()?;
+		info.path = info.path.canonicalize()?;
 
-		// check if file already exists
-		let exists = check_subdir(&root_path, &p)?;
-		existing[i] = exists;
-		if exists {
+		// check if path already exists
+		if check_subdir(&root_path, &info.path)? {
+			info.state = State::Existing;
 			println!("{} already exists under {}",
-				p.display(),
+				info.path.display(),
 				root_path.display()
 			);
 			continue;
 		}
 
 		// get size of file and it's hash
-		let mut file = File::open(&p)?;
-		sizes.push(
-			file.read_to_end(&mut buffer)?
-		);
-		println!("{} size: {}", name, sizes.last().unwrap());
+		let mut file = File::open(&info.path)?;
+		info.size = file.read_to_end(&mut buffer)?;
+		println!("{} size: {}", name, info.size);
 
-		hashes.push(hash(&buffer));
-		println!("{} hash: {}", name, hashes.last().unwrap());
+		info.hash = buffer.hash();
+		println!("{} hash: {}", name, info.hash);
 
-		real_paths[i] = Some(p);
-		println!("full path: {}", real_paths.last()
-			.unwrap()
-			.as_ref()
-			.unwrap()
-			.display()
-		);
+		println!("full path: {}", info.path.display());
 	}
 
-	assert_eq!(file_names.len(), real_paths.len());
-	assert_eq!(file_names.len(), existing.len());
+	assert_eq!(file_names.len(), infos.len());
 
 	// start vim
 	Command::new("doas")
