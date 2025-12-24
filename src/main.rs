@@ -12,8 +12,34 @@ use std::process::Command;
 use std::os::unix::fs::symlink;
 
 mod xxhash;
+use xxhash::XXhash64;
 
 const ROOT_PATH: &str = "/sudovim";
+
+#[derive(Debug)]
+enum State {
+	Existing, // already has a symlink
+	New, // new file, dne yet
+	Process, // file has to be processed
+}
+
+// all the relevant info on the file
+struct FileInfo {
+	state: State,
+	path: PathBuf,
+	size: usize,
+	hash: u64,
+}
+impl FileInfo {
+	fn new(state: State, path: PathBuf) -> FileInfo {
+		FileInfo {
+			state,
+			path,
+			size: 0,
+			hash: 0,
+		}
+	}
+}
 
 fn main() -> Result<(), io::Error> {
 	// get the path
@@ -49,63 +75,52 @@ fn main() -> Result<(), io::Error> {
 		// NOTE: this ^ else breaks null
 	};
 
-	let mut real_paths: Vec<Option<PathBuf>> = Vec::with_capacity(argc);
-	// None => files doesn't exist yet
-	let mut paths: Vec<&Path> = Vec::with_capacity(argc);
-	let mut existing: Vec<bool> = Vec::with_capacity(argc);
-	// store if flag has symlink already under &root
-	let mut sizes: Vec<usize> = Vec::with_capacity(argc);
-	let mut hashes: Vec<u64> = Vec::with_capacity(argc);
+	let mut infos: Vec<FileInfo> = Vec::with_capacity(argc);
 
 	let mut buffer: Vec<u8> = Vec::new();
 	for i in 0..file_names.len() {
 		let name = &file_names[i];
 		println!("Found file name: {}", name);
-		existing.push(false);
-		real_paths.push(None);
+
 		buffer.clear();
 
-		// get path of file
-		let p = Path::new(name);
-		paths.push(p); // slices get copied
-		if !p.exists() {
+		// new info struct
+		infos.push(FileInfo::new(
+			State::Process,
+			PathBuf::from(name)
+		));
+		let info: &mut FileInfo = infos.last_mut().unwrap();
+
+		// check if new file
+		if !info.path.exists() {
 			println!("File doesn't exist yet");
+			info.state = State::New;
 			continue;
 		}
-		let p = p.canonicalize()?;
+		info.path = info.path.canonicalize()?;
 
-		// check if file already exists
-		let exists = check_subdir(&root_path, &p)?;
-		existing[i] = exists;
-		if exists {
+		// check if path already exists
+		if check_subdir(&root_path, &info.path)? {
+			info.state = State::Existing;
 			println!("{} already exists under {}",
-				p.display(),
+				info.path.display(),
 				root_path.display()
 			);
 			continue;
 		}
 
 		// get size of file and it's hash
-		let mut file = File::open(&p)?;
-		sizes.push(
-			file.read_to_end(&mut buffer)?
-		);
-		println!("{} size: {}", name, sizes.last().unwrap());
+		let mut file = File::open(&info.path)?;
+		info.size = file.read_to_end(&mut buffer)?;
+		println!("{} size: {}", name, info.size);
 
-		hashes.push(hash(&buffer));
-		println!("{} hash: {}", name, hashes.last().unwrap());
+		info.hash = buffer.hash();
+		println!("{} hash: {}", name, info.hash);
 
-		real_paths[i] = Some(p);
-		println!("full path: {}", real_paths.last()
-			.unwrap()
-			.as_ref()
-			.unwrap()
-			.display()
-		);
+		println!("full path: {}", info.path.display());
 	}
 
-	assert_eq!(file_names.len(), real_paths.len());
-	assert_eq!(file_names.len(), existing.len());
+	assert_eq!(file_names.len(), infos.len());
 
 	// start vim
 	Command::new("doas")
@@ -114,46 +129,36 @@ fn main() -> Result<(), io::Error> {
 		.status()?;
 
 	// check the hashes and everything again
-	let mut sizes = sizes.into_iter();
-	let mut hashes = hashes.into_iter();
 	println!("");
-	for i in 0..file_names.len() {
-		let name = &file_names[i];
+	for info in infos {
+		match info.state {
+			State::Existing => {
+				println!("{} already has a symlink", info.path.display())
+			},
+			State::New => {
+				if info.path.exists() {
+					println!("Creating symlink for new file {}", info.path.display());
+					add(root_path, &info.path.canonicalize()?)?;
+				} else {
+					println!("file {} not created", info.path.display());
+				}
+			},
+			State::Process => {
+				buffer.clear();
+				// get the size and hash
+				let mut file = File::open(&info.path)?;
+				let size = file.read_to_end(&mut buffer)?;
 
-		// check if it exists
-		if existing[i] {
-			println!("{} already has a symlink", name);
-			continue;
-		}
-
-		// check if a new file has been created
-		if let None = real_paths[i] {
-			if paths[i].exists() {
-				println!("Creating symlink for new file {}", paths[i].display());
-				add(root_path, &paths[i].canonicalize()?)?;
-			} else {
-				println!("file {} not created", paths[i].display());
+				// I hope that rust has short circuting
+				if size != info.size
+					||
+				buffer.hash() != info.hash {
+					println!("{} modified, creating symlink", info.path.display());
+					add(root_path, &info.path)?;
+				} else {
+					println!("{} not modified, symlink not created", info.path.display());
+				}
 			}
-			continue;
-		}
-
-		// The file exists
-		buffer.clear();
-		let real_path = real_paths[i].take().unwrap();
-		// NOTE: take() ^ transfers ownership, does not allocate again
-
-		// get the size and hash
-		let mut file = File::open(&real_path)?;
-		let size = file.read_to_end(&mut buffer)?;
-
-		// I hope that rust has short circuting
-		if size != sizes.next().unwrap()
-			||
-		hash(&buffer) != hashes.next().unwrap() {
-			println!("{} modified, creating symlink", real_path.display());
-			add(root_path, &real_path)?;
-		} else {
-			println!("{} not modified, symlink not created", real_path.display());
 		}
 	}
 	Ok(())
@@ -178,32 +183,6 @@ fn list(path: &Path) -> Result<(), io::Error> {
 		}
 	}
 	Ok(())
-}
-
-// Just a hash by XORing the 8 bytes together.
-// There is a very small chance that if the file sizes are the same, the hashes
-// would also be the same.
-fn hash(bytes: &[u8]) -> u64 {
-	let mut hash_: u64 = 0;
-
-	let mut i = 0;
-	while i+8 < bytes.len() {
-		hash_ ^= convert_u64(&bytes[i..i+8]);
-		i += 8;
-	}
-	hash_
-}
-
-#[inline]
-fn convert_u64(bytes: &[u8]) -> u64 {
-	let mut target: u64 = 0;
-
-	let mut i = 0;
-	while i < 8 && i < bytes.len() {
-		target += (bytes[i] as u64) << (i * 8);
-		i += 1;
-	}
-	target
 }
 
 // check if subdir is a subdirectory of path
@@ -241,19 +220,6 @@ fn add(path: &Path, subdir: &Path) -> Result<(), io::Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[test]
-	fn convert_u64_test() {
-		let result = convert_u64(&[0x78, 0x56, 0x34, 0x12]);
-		assert!(result == 305419896);
-	}
-
-	#[test]
-	fn hash_test() -> Result<(), io::Error> {
-		let bytes = fs::read(Path::new("./src/main.rs"))?;
-		println!("{:x}", hash(&bytes));
-		Ok(())
-	}
 
 	#[test]
 	fn check_subdir_test() -> Result<(), io::Error> {
