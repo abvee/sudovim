@@ -91,16 +91,17 @@ fn main() -> Result<(), io::Error> {
 
 		buffer.clear();
 
+		// new info struct
 		infos.push(FileInfo::new(
 			State::Process,
 			PathBuf::from(name)
 		));
 		let info: &mut FileInfo = infos.last_mut().unwrap();
 
+		// check if new file
 		if !info.path.exists() {
 			println!("File doesn't exist yet");
 			info.state = State::New;
-			// infos.push(info);
 			continue;
 		}
 		info.path = info.path.canonicalize()?;
@@ -138,43 +139,35 @@ fn main() -> Result<(), io::Error> {
 	let mut sizes = sizes.into_iter();
 	let mut hashes = hashes.into_iter();
 	println!("");
-	for i in 0..file_names.len() {
-		let name = &file_names[i];
+	for info in infos {
+		match info.state {
+			State::Existing => {
+				println!("{} already has a symlink", info.path.display())
+			},
+			State::New => {
+				if info.path.exists() {
+					println!("Creating symlink for new file {}", info.path.display());
+					add(root_path, &info.path.canonicalize()?)?;
+				} else {
+					println!("file {} not created", info.path.display());
+				}
+			},
+			State::Process => {
+				buffer.clear();
+				// get the size and hash
+				let mut file = File::open(&info.path)?;
+				let size = file.read_to_end(&mut buffer)?;
 
-		// check if it exists
-		if existing[i] {
-			println!("{} already has a symlink", name);
-			continue;
-		}
-
-		// check if a new file has been created
-		if let None = real_paths[i] {
-			if paths[i].exists() {
-				println!("Creating symlink for new file {}", paths[i].display());
-				add(root_path, &paths[i].canonicalize()?)?;
-			} else {
-				println!("file {} not created", paths[i].display());
+				// I hope that rust has short circuting
+				if size != info.size
+					||
+				buffer.hash() != info.hash {
+					println!("{} modified, creating symlink", info.path.display());
+					add(root_path, &info.path)?;
+				} else {
+					println!("{} not modified, symlink not created", info.path.display());
+				}
 			}
-			continue;
-		}
-
-		// The file exists
-		buffer.clear();
-		let real_path = real_paths[i].take().unwrap();
-		// NOTE: take() ^ transfers ownership, does not allocate again
-
-		// get the size and hash
-		let mut file = File::open(&real_path)?;
-		let size = file.read_to_end(&mut buffer)?;
-
-		// I hope that rust has short circuting
-		if size != sizes.next().unwrap()
-			||
-		hash(&buffer) != hashes.next().unwrap() {
-			println!("{} modified, creating symlink", real_path.display());
-			add(root_path, &real_path)?;
-		} else {
-			println!("{} not modified, symlink not created", real_path.display());
 		}
 	}
 	Ok(())
