@@ -1,0 +1,100 @@
+.TH SUDOVIM 1 "January 2026" "sudovim" "User Commands"
+.SH NAME
+sudovim \- edit and track root-owned configuration files via XDG data directories
+.SH SYNOPSIS
+.B sudovim
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+.SH DESCRIPTION
+.B sudovim
+is a small utility designed to simplify keeping track of which system
+configuration files have been edited.
+
+The program acts as a frontend to running 
+.I $EDITOR
+as root, but additionally creates symbolic link pointing to configuration file
+if it has changed.
+The symbolic link mirrors the absolute path of the configuration file under
+.I $XDG_DATA_DIR/sudovim
+\&.
+
+This approach allows users to easily identify and manage which system
+configuration files have been modified from their defaults.
+
+.B sudovim
+hashes the file and measures it's size before and after editing to determine if
+the file has changed. It uses the fast xxhash64 algorithm to reduce hash times.
+
+.SH OPERATION
+When invoked on one or more files, sudovim:
+.IP "1."
+Launches the editor specified by the
+.B EDITOR
+environment variable with elevated privileges.
+.IP "2."
+Creates a mirrored directory structure under
+.BR $XDG_DATA_HOME/sudovim
+corresponding to the original file path.
+.IP "3."
+Creates a symbolic link to the original system file.
+
+For example, running:
+.PP
+.RS
+$ sudovim /etc/default/grub
+.RE
+.PP
+results in:
+.PP
+.RS
+$XDG_DATA_HOME/sudovim/etc/default/grub -> /etc/default/grub 
+.RE
+only if the file has been changed.
+
+.SH OPTIONS
+.TP
+.B \-l
+List tracked configuration files under
+.BR \$XDG_DATA_HOME/sudovim
+and exit.
+
+This option is processed before any file arguments.
+All remaining arguments are ignored when
+.B \-l
+is specified.
+At present, sudovim does not define command-line options beyond specifying
+one or more file paths to edit.
+
+.SH FILES
+.TP
+.B $XDG_DATA_HOME/sudovim/
+Root directory where tracked configuration files are stored.
+
+.SH ENVIRONMENT
+.TP
+.B EDITOR
+Specifies the text editor to use when opening files.
+.TP
+.B XDG_DATA_HOME
+Base directory for application data.
+Defaults to
+.I ~/.local/share
+if unset.
+
+.SH NOTES
+Files created dynamically within the editor session (for example via
+editor commands that open new, unnamed files) may not be automatically
+tracked until they are saved explicitly.
+
+sudovim is intended as a lightweight helper for configuration management,
+not a full replacement for version control systems.
+
+.SH SEE ALSO
+.BR vim (1),
+.BR sudo (8),
+.BR xdg-base-directory (7)
+
+.SH LICENSE
+GPL-3.0
+
+.SH AUTHOR
+abvee
