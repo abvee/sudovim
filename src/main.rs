@@ -61,6 +61,7 @@ fn main() -> Result<(), io::Error> {
 	if argc == 0 { return Ok(()) }
 	let mut cmdline = cmdline.peekable();
 
+	// TODO: maybe add a help option
 	let file_names: Vec<String> = loop {
 		if let Some(arg) = cmdline.peek() {
 			if arg == "-l" {
